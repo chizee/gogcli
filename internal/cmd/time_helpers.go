@@ -131,6 +131,7 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 				from = now.Add(defaults.FromOffset)
 			}
 
+<<<<<<< HEAD
 			switch {
 			case flags.To != "":
 				toIsDayExpr := isDayExpr(flags.To, now, loc)
@@ -155,6 +156,7 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 	}, nil
 }
 
+<<<<<<< HEAD
 func isDayExpr(expr string, now time.Time, loc *time.Location) bool {
 	expr = strings.TrimSpace(expr)
 	if expr == "" {
