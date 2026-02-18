@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/App Script/Ads/Groups/Admin/Keep
+Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Ads/Groups/Admin/Keep/YouTube
 
 Config:
   file: /Users/steipete/Library/Application Support/gogcli/config.json
@@ -53,6 +53,7 @@ gog <command> [flags]
 - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
+- [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
 
 ## Flags
 

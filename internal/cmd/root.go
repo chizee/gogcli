@@ -83,6 +83,7 @@ type CLI struct {
 	Forms      FormsCmd              `cmd:"" aliases:"form" help:"Google Forms"`
 	Meet       MeetCmd               `cmd:"" aliases:"meeting" help:"Google Meet"`
 	AppScript  AppScriptCmd          `cmd:"" name:"appscript" aliases:"script,apps-script" help:"Google Apps Script"`
+	YouTube    YouTubeCmd            `cmd:"" name:"youtube" aliases:"yt" help:"YouTube Data API (activities, videos, playlists, comments, channels)"`
 	Config     ConfigCmd             `cmd:"" help:"Manage configuration"`
 	ExitCodes  AgentExitCodesCmd     `cmd:"" name:"exit-codes" aliases:"exitcodes" help:"Print stable exit codes (alias for 'agent exit-codes')"`
 	Agent      AgentCmd              `cmd:"" help:"Agent-friendly helpers"`
@@ -351,7 +352,7 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 }
 
 func baseDescription() string {
-	return "Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/App Script/Ads/Groups/Admin/Keep"
+	return "Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Ads/Groups/Admin/Keep/YouTube"
 }
 
 func helpDescription() string {

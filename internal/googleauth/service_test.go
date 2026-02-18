@@ -24,6 +24,7 @@ func TestParseService(t *testing.T) {
 		{"ads", ServiceAds},
 		{"groups", ServiceGroups},
 		{"keep", ServiceKeep},
+		{"youtube", ServiceYouTube},
 	}
 	for _, tt := range tests {
 		got, err := ParseService(tt.in)
@@ -66,7 +67,7 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 18 {
+	if len(svcs) != 19 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -75,7 +76,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceMeet, ServiceAppScript, ServiceAds, ServiceGroups, ServiceKeep, ServiceAdmin} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceMeet, ServiceAppScript, ServiceAds, ServiceGroups, ServiceKeep, ServiceAdmin, ServiceYouTube} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -84,7 +85,7 @@ func TestAllServices(t *testing.T) {
 
 func TestUserServices(t *testing.T) {
 	svcs := UserServices()
-	if len(svcs) != 15 {
+	if len(svcs) != 16 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 
@@ -97,7 +98,7 @@ func TestUserServices(t *testing.T) {
 			seenDocs = true
 		case ServiceSlides:
 			seenSlides = true
-		case ServiceForms, ServiceMeet, ServiceAppScript, ServiceAds:
+		case ServiceForms, ServiceMeet, ServiceAppScript, ServiceAds, ServiceYouTube:
 			// expected user services
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
@@ -114,7 +115,7 @@ func TestUserServices(t *testing.T) {
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript,ads"
+	want := "gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript,ads,youtube"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}
@@ -225,6 +226,23 @@ func TestScopesForServices_UnionSorted(t *testing.T) {
 
 		if !found {
 			t.Fatalf("missing scope %q in %v", w, scopes)
+		}
+	}
+}
+
+func TestScopesForServiceWithOptions_YouTubeStaysReadonly(t *testing.T) {
+	for _, readonly := range []bool{false, true} {
+		scopes, err := scopesForServiceWithOptions(ServiceYouTube, ScopeOptions{Readonly: readonly})
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		if !containsScope(scopes, "https://www.googleapis.com/auth/youtube.readonly") {
+			t.Fatalf("youtube readonly scope missing: %v", scopes)
+		}
+
+		if containsScope(scopes, "https://www.googleapis.com/auth/youtube.force-ssl") {
+			t.Fatalf("youtube force-ssl scope should not be requested for read-only commands: %v", scopes)
 		}
 	}
 }

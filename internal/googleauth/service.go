@@ -28,6 +28,7 @@ const (
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
 	ServiceAdmin     Service = "admin"
+	ServiceYouTube   Service = "youtube"
 )
 
 const (
@@ -90,6 +91,7 @@ var serviceOrder = []Service{
 	ServiceGroups,
 	ServiceKeep,
 	ServiceAdmin,
+	ServiceYouTube,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -243,6 +245,12 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: false,
 		apis: []string{"Admin SDK Directory API"},
 		note: "Workspace only; service account with domain-wide delegation required",
+	},
+	ServiceYouTube: {
+		scopes: []string{"https://www.googleapis.com/auth/youtube.readonly"},
+		user:   true,
+		apis:   []string{"YouTube Data API v3"},
+		note:   "Most read operations also work with API key only (config youtube_api_key or GOG_YOUTUBE_API_KEY)",
 	},
 }
 
@@ -582,6 +590,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:
+		return Scopes(service)
+	case ServiceYouTube:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService

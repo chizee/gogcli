@@ -1,8 +1,8 @@
 # gogcli
 
 `gog` is a script-friendly Google CLI for Gmail, Calendar, Drive, Docs, Sheets,
-Slides, Forms, Meet, Apps Script, Contacts, Tasks, People, Classroom, Chat, and
-Workspace admin flows.
+Slides, Forms, Meet, Apps Script, Contacts, Tasks, People, Classroom, Chat,
+YouTube, and Workspace admin flows.
 
 It is built for terminals, shell scripts, CI, and coding agents:
 
@@ -81,6 +81,7 @@ Useful Google setup links:
 - [OAuth clients](https://console.cloud.google.com/auth/clients)
 - [OAuth consent screen](https://console.cloud.google.com/auth/branding)
 - [API library](https://console.cloud.google.com/apis/library)
+- [YouTube Data API v3](https://console.cloud.google.com/apis/api/youtube.googleapis.com)
 - [Apps Script user setting](https://script.google.com/home/usersettings)
 
 Enable APIs in the same Cloud project that owns your OAuth client. If Google
@@ -182,6 +183,15 @@ gog forms add-question <formId> --title "What is 2+2?" --type radio -o 1 -o 4 --
 gog forms publish <formId>
 gog forms responses list <formId> --json
 gog forms raw <formId> --pretty
+```
+
+### YouTube
+
+```bash
+gog config set youtube_api_key YOUR_API_KEY
+gog yt channels list --id UC_x5XG1OV2P6uZZ5FSM9Ttw --json
+gog yt videos list --chart mostPopular --region US --max 5
+gog yt activities list --mine -a you@gmail.com
 ```
 
 ### Backup
@@ -339,6 +349,7 @@ Generated service scope table:
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |
 | admin | no | Admin SDK Directory API | `https://www.googleapis.com/auth/admin.directory.user`<br>`https://www.googleapis.com/auth/admin.directory.group`<br>`https://www.googleapis.com/auth/admin.directory.group.member` | Workspace only; service account with domain-wide delegation required |
+| youtube | yes | YouTube Data API v3 | `https://www.googleapis.com/auth/youtube.readonly` | Most read operations also work with API key only (config youtube_api_key or GOG_YOUTUBE_API_KEY) |
 <!-- auth-services:end -->
 
 Regenerate the table with:

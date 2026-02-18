@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 478.
+Generated pages: 489.
 
 ## Top-level Commands
 
@@ -43,10 +43,11 @@ Generated pages: 478.
 - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
+- [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
 
 ## All Commands
 
-- [gog](gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/App Script/Ads/Groups/Admin/Keep
+- [gog](gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Ads/Groups/Admin/Keep/YouTube
   - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
     - [gog admin groups](gog-admin-groups.md) - Manage Workspace groups
       - [gog admin groups list](gog-admin-groups-list.md) - List groups in a domain
@@ -524,3 +525,14 @@ Generated pages: 478.
   - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [gog version](gog-version.md) - Print version
   - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
+  - [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+    - [gog youtube activities](gog-youtube-activities.md) - List channel activities
+      - [gog youtube activities list](gog-youtube-activities-list.md) - List activities for a channel (or authenticated user)
+    - [gog youtube channels](gog-youtube-channels.md) - List channels
+      - [gog youtube channels list](gog-youtube-channels-list.md) - List channels by ID or authenticated user
+    - [gog youtube comments](gog-youtube-comments.md) - List comment threads
+      - [gog youtube comments list](gog-youtube-comments-list.md) - List comment threads for a video or channel
+    - [gog youtube playlists](gog-youtube-playlists.md) - List playlists
+      - [gog youtube playlists list](gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+    - [gog youtube videos](gog-youtube-videos.md) - List or get videos
+      - [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID or chart

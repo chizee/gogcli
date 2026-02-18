@@ -2,7 +2,7 @@
 
 Generated from `gog schema --json`.
 
-- [`gog <command> [flags]`](commands/gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/App Script/Ads/Groups/Admin/Keep
+- [`gog <command> [flags]`](commands/gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Ads/Groups/Admin/Keep/YouTube
   - [`gog admin <command> [flags]`](commands/gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
     - [`gog admin groups <command>`](commands/gog-admin-groups.md) - Manage Workspace groups
       - [`gog admin groups list (ls) [flags]`](commands/gog-admin-groups-list.md) - List groups in a domain
@@ -480,3 +480,14 @@ Generated from `gog schema --json`.
   - [`gog upload (up,put) <localPath> [flags]`](commands/gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [`gog version [flags]`](commands/gog-version.md) - Print version
   - [`gog whoami (who-am-i) [flags]`](commands/gog-whoami.md) - Show your profile (alias for 'people me')
+  - [`gog youtube (yt) <command> [flags]`](commands/gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+    - [`gog youtube (yt) activities (activity) <command>`](commands/gog-youtube-activities.md) - List channel activities
+      - [`gog youtube (yt) activities (activity) list (ls) [flags]`](commands/gog-youtube-activities-list.md) - List activities for a channel (or authenticated user)
+    - [`gog youtube (yt) channels (channel) <command>`](commands/gog-youtube-channels.md) - List channels
+      - [`gog youtube (yt) channels (channel) list (ls) [flags]`](commands/gog-youtube-channels-list.md) - List channels by ID or authenticated user
+    - [`gog youtube (yt) comments (comment) <command>`](commands/gog-youtube-comments.md) - List comment threads
+      - [`gog youtube (yt) comments (comment) list (ls) [flags]`](commands/gog-youtube-comments-list.md) - List comment threads for a video or channel
+    - [`gog youtube (yt) playlists (playlist) <command>`](commands/gog-youtube-playlists.md) - List playlists
+      - [`gog youtube (yt) playlists (playlist) list (ls) [flags]`](commands/gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+    - [`gog youtube (yt) videos (video) <command>`](commands/gog-youtube-videos.md) - List or get videos
+      - [`gog youtube (yt) videos (video) list (ls) [flags]`](commands/gog-youtube-videos-list.md) - List videos by ID or chart
