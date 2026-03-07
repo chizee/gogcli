@@ -152,11 +152,7 @@ func Execute(args []string) (err error) {
 		Select:      splitCommaList(cli.Select),
 	})
 	ctx = authclient.WithClient(ctx, cli.Client)
-	ctx = authclient.WithAccessToken(ctx, cli.AccessToken)
-
-	if strings.TrimSpace(cli.AccessToken) != "" {
-		_, _ = fmt.Fprintln(os.Stderr, "Note: Using direct access token (expires in ~1 hour; no auto-refresh)")
-	}
+	ctx = authclient.WithAccessToken(ctx, directAccessToken(&cli.RootFlags))
 
 	uiColor := cli.Color
 	if outfmt.IsJSON(ctx) || outfmt.IsPlain(ctx) {
