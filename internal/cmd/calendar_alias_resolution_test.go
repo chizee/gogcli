@@ -3,30 +3,15 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
-
-func newCalendarAliasJSONContext(t *testing.T) context.Context {
-	t.Helper()
-
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	return outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
-}
 
 func setupCalendarAliasHome(t *testing.T) {
 	t.Helper()
@@ -45,7 +30,7 @@ func TestCalendarEventCmd_UsesResolvedAliasID(t *testing.T) {
 		t.Fatalf("SetCalendarAlias: %v", err)
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSvc := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/calendars/family-cal%40group.calendar.google.com/events/evt1":
 			w.Header().Set("Content-Type", "application/json")
@@ -66,19 +51,10 @@ func TestCalendarEventCmd_UsesResolvedAliasID(t *testing.T) {
 		}
 		http.NotFound(w, r)
 	}))
-	defer srv.Close()
-
-	svc, err := calendar.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
+	defer closeSvc()
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	ctx := newCalendarAliasJSONContext(t)
+	ctx := newCalendarJSONContext(t)
 	out := captureStdout(t, func() {
 		if err := runKong(t, &CalendarEventCmd{}, []string{"family", "evt1"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
 			t.Fatalf("runKong: %v", err)
@@ -103,7 +79,7 @@ func TestCalendarEventsCmd_CalInput_UsesResolvedAliasID(t *testing.T) {
 		t.Fatalf("SetCalendarAlias: %v", err)
 	}
 
-	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSvc := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.EscapedPath(), "/users/me/calendarList") {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -132,16 +108,7 @@ func TestCalendarEventsCmd_CalInput_UsesResolvedAliasID(t *testing.T) {
 		}
 		http.NotFound(w, r)
 	})))
-	defer srv.Close()
-
-	svc, err := calendar.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
+	defer closeSvc()
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
 	out := captureStdout(t, func() {

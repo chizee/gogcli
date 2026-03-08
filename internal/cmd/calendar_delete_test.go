@@ -4,15 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/calendar/v3"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestCalendarDeleteCmd_ScopeSingle(t *testing.T) {
@@ -46,11 +42,7 @@ func TestCalendarDeleteCmd_ScopeSingle(t *testing.T) {
 	defer closeSvc()
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONContext(t)
 
 	cmd := CalendarDeleteCmd{
 		CalendarID:        "cal@example.com",
@@ -114,11 +106,7 @@ func TestCalendarDeleteCmd_SendUpdates(t *testing.T) {
 	defer closeSvc()
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONContext(t)
 
 	cmd := CalendarDeleteCmd{
 		CalendarID:  "cal",
@@ -180,11 +168,7 @@ func TestCalendarDeleteCmd_ScopeFuture(t *testing.T) {
 	defer closeSvc()
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONContext(t)
 
 	cmd := CalendarDeleteCmd{
 		CalendarID:        "cal@example.com",
@@ -220,11 +204,7 @@ func TestCalendarDeleteCmd_DryRunSkipsService(t *testing.T) {
 		return nil, errors.New("unexpected service creation")
 	}
 
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONContext(t)
 
 	cmd := CalendarDeleteCmd{CalendarID: "cal@example.com", EventID: "ev"}
 	out := captureStdout(t, func() {
