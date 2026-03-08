@@ -53,93 +53,22 @@ type CalendarCreateCmd struct {
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID, err := prepareCalendarID(c.CalendarID, false)
+	plan, err := buildCalendarCreatePlan(c)
 	if err != nil {
 		return err
 	}
 
-	eventType, err := c.resolveCreateEventType()
+	calendarID, err := prepareCalendarID(plan.CalendarID, false)
 	if err != nil {
-		return err
-	}
-
-	summary := strings.TrimSpace(c.Summary)
-	if summary == "" {
-		summary = c.defaultSummaryForEventType(eventType)
-	}
-	if summary == "" || strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
-		return usage("required: --summary, --from, --to")
-	}
-
-	colorId, err := validateColorId(c.ColorId)
-	if err != nil {
-		return err
-	}
-	visibility, err := validateVisibility(c.Visibility)
-	if err != nil {
-		return err
-	}
-	transparency, err := validateTransparency(c.Transparency)
-	if err != nil {
-		return err
-	}
-	sendUpdates, err := validateSendUpdates(c.SendUpdates)
-	if err != nil {
-		return err
-	}
-	reminders, err := buildReminders(c.Reminders)
-	if err != nil {
-		return err
-	}
-
-	allDay, err := resolveCreateAllDay(c.From, c.To, c.AllDay, eventType)
-	if err != nil {
-		return err
-	}
-	transparency = applyEventTypeTransparencyDefault(transparency, eventType)
-
-	event := &calendar.Event{
-		Summary:            summary,
-		Description:        strings.TrimSpace(c.Description),
-		Location:           strings.TrimSpace(c.Location),
-		Start:              buildEventDateTime(c.From, allDay),
-		End:                buildEventDateTime(c.To, allDay),
-		Attendees:          buildAttendees(c.Attendees),
-		Recurrence:         buildRecurrence(c.Recurrence),
-		Reminders:          reminders,
-		ColorId:            colorId,
-		Visibility:         visibility,
-		Transparency:       transparency,
-		ConferenceData:     buildConferenceData(c.WithMeet),
-		Attachments:        buildAttachments(c.Attachments),
-		ExtendedProperties: buildExtendedProperties(c.PrivateProps, c.SharedProps),
-	}
-	if c.GuestsCanInviteOthers != nil {
-		event.GuestsCanInviteOthers = c.GuestsCanInviteOthers
-	}
-	if c.GuestsCanModify != nil {
-		event.GuestsCanModify = *c.GuestsCanModify
-	}
-	if c.GuestsCanSeeOthers != nil {
-		event.GuestsCanSeeOtherGuests = c.GuestsCanSeeOthers
-	}
-	if strings.TrimSpace(c.SourceUrl) != "" {
-		event.Source = &calendar.EventSource{
-			Url:   strings.TrimSpace(c.SourceUrl),
-			Title: strings.TrimSpace(c.SourceTitle),
-		}
-	}
-
-	if err = c.applyCreateEventType(event, eventType); err != nil {
 		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.create", map[string]any{
 		"calendar_id":          calendarID,
-		"send_updates":         sendUpdates,
-		"conference_version_1": c.WithMeet,
-		"supports_attachments": len(event.Attachments) > 0,
-		"event":                event,
+		"send_updates":         plan.SendUpdates,
+		"conference_version_1": plan.WithMeet,
+		"supports_attachments": len(plan.Event.Attachments) > 0,
+		"event":                plan.Event,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -158,14 +87,14 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	call := svc.Events.Insert(calendarID, event)
-	if sendUpdates != "" {
-		call = call.SendUpdates(sendUpdates)
+	call := svc.Events.Insert(calendarID, plan.Event)
+	if plan.SendUpdates != "" {
+		call = call.SendUpdates(plan.SendUpdates)
 	}
-	if c.WithMeet {
+	if plan.WithMeet {
 		call = call.ConferenceDataVersion(1)
 	}
-	if len(event.Attachments) > 0 {
+	if len(plan.Event.Attachments) > 0 {
 		call = call.SupportsAttachments(true)
 	}
 	created, err := call.Do()
@@ -267,46 +196,19 @@ func (c *CalendarCreateCmd) applyCreateEventType(event *calendar.Event, eventTyp
 }
 
 func (c *CalendarCreateCmd) buildFocusTimeProperties() (*calendar.EventFocusTimeProperties, error) {
-	autoDecline := strings.TrimSpace(c.FocusAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultFocusAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	chatStatus := strings.TrimSpace(c.FocusChatStatus)
-	if chatStatus == "" {
-		chatStatus = defaultFocusChatStatus
-	}
-	chatStatusValue, err := validateChatStatus(chatStatus)
-	if err != nil {
-		return nil, err
-	}
-	return &calendar.EventFocusTimeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  strings.TrimSpace(c.FocusDeclineMessage),
-		ChatStatus:      chatStatusValue,
-	}, nil
+	return buildFocusTimeProperties(focusTimeInput{
+		AutoDecline:    c.FocusAutoDecline,
+		DeclineMessage: c.FocusDeclineMessage,
+		ChatStatus:     c.FocusChatStatus,
+	})
 }
 
 func (c *CalendarCreateCmd) buildOutOfOfficeProperties() (*calendar.EventOutOfOfficeProperties, error) {
-	autoDecline := strings.TrimSpace(c.OOOAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultOOOAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	declineMessage := strings.TrimSpace(c.OOODeclineMessage)
-	if declineMessage == "" {
-		declineMessage = defaultOOODeclineMsg
-	}
-	return &calendar.EventOutOfOfficeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  declineMessage,
-	}, nil
+	return buildOutOfOfficeProperties(outOfOfficeInput{
+		AutoDecline:            c.OOOAutoDecline,
+		DeclineMessage:         c.OOODeclineMessage,
+		DeclineMessageProvided: false,
+	})
 }
 
 type CalendarUpdateCmd struct {
@@ -827,46 +729,19 @@ func (c *CalendarUpdateCmd) applyEventTypeProperties(kctx *kong.Context, patch *
 }
 
 func (c *CalendarUpdateCmd) buildUpdateFocusTimeProperties() (*calendar.EventFocusTimeProperties, error) {
-	autoDecline := strings.TrimSpace(c.FocusAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultFocusAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	chatStatus := strings.TrimSpace(c.FocusChatStatus)
-	if chatStatus == "" {
-		chatStatus = defaultFocusChatStatus
-	}
-	chatStatusValue, err := validateChatStatus(chatStatus)
-	if err != nil {
-		return nil, err
-	}
-	return &calendar.EventFocusTimeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  strings.TrimSpace(c.FocusDeclineMessage),
-		ChatStatus:      chatStatusValue,
-	}, nil
+	return buildFocusTimeProperties(focusTimeInput{
+		AutoDecline:    c.FocusAutoDecline,
+		DeclineMessage: c.FocusDeclineMessage,
+		ChatStatus:     c.FocusChatStatus,
+	})
 }
 
 func (c *CalendarUpdateCmd) buildUpdateOutOfOfficeProperties(declineProvided bool) (*calendar.EventOutOfOfficeProperties, error) {
-	autoDecline := strings.TrimSpace(c.OOOAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultOOOAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	declineMessage := strings.TrimSpace(c.OOODeclineMessage)
-	if declineMessage == "" && !declineProvided {
-		declineMessage = defaultOOODeclineMsg
-	}
-	return &calendar.EventOutOfOfficeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  declineMessage,
-	}, nil
+	return buildOutOfOfficeProperties(outOfOfficeInput{
+		AutoDecline:            c.OOOAutoDecline,
+		DeclineMessage:         c.OOODeclineMessage,
+		DeclineMessageProvided: declineProvided,
+	})
 }
 
 func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, eventID, scope, originalStartTime string, patch *calendar.Event) (string, []string, error) {
