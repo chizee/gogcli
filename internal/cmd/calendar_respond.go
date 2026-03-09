@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
@@ -56,21 +55,12 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
-	if err != nil {
-		return err
-	}
-
-	event, err := svc.Events.Get(calendarID, eventID).Do()
+	event, err := mutation.svc.Events.Get(mutation.calendarID, eventID).Do()
 	if err != nil {
 		return err
 	}
@@ -104,14 +94,13 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	patch := &calendar.Event{
 		Attendees: event.Attendees,
 	}
-	updated, err := svc.Events.Patch(calendarID, eventID, patch).Do()
+	updated, err := mutation.patchEvent(eventID, patch, "")
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
+		return mutation.writeEvent(updated)
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)

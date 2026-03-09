@@ -3,13 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -52,7 +50,6 @@ type CalendarCreateCmd struct {
 }
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
 	plan, err := buildCalendarCreatePlan(c)
 	if err != nil {
 		return err
@@ -73,40 +70,20 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	svc, err := newCalendarService(ctx, account)
+	created, err := mutation.insertEvent(plan.Event, calendarInsertOptions{
+		sendUpdates:         plan.SendUpdates,
+		conferenceVersion1:  plan.WithMeet,
+		supportsAttachments: len(plan.Event.Attachments) > 0,
+	})
 	if err != nil {
 		return err
 	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
-	if err != nil {
-		return err
-	}
-
-	call := svc.Events.Insert(calendarID, plan.Event)
-	if plan.SendUpdates != "" {
-		call = call.SendUpdates(plan.SendUpdates)
-	}
-	if plan.WithMeet {
-		call = call.ConferenceDataVersion(1)
-	}
-	if len(plan.Event.Attachments) > 0 {
-		call = call.SupportsAttachments(true)
-	}
-	created, err := call.Do()
-	if err != nil {
-		return err
-	}
-	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
-	}
-	printCalendarEventWithTimezone(u, created, tz, loc)
-	return nil
+	return mutation.writeEvent(created)
 }
 
 func (c *CalendarCreateCmd) resolveCreateEventType() (string, error) {
@@ -250,7 +227,6 @@ type CalendarUpdateCmd struct {
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
 	calendarID, err := prepareCalendarID(c.CalendarID, false)
 	if err != nil {
 		return err
@@ -311,23 +287,14 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
 	// For --add-attendee, fetch current event to preserve existing attendees with metadata.
 	if wantsAddAttendee {
-		existing, getErr := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, eventID).Context(ctx).Do()
 		if getErr != nil {
 			return fmt.Errorf("failed to fetch current event: %w", getErr)
 		}
@@ -341,35 +308,26 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
-	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, svc, calendarID, eventID, scope, c.OriginalStartTime, patch)
+	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime, patch)
 	if err != nil {
 		return err
 	}
 	if recurrenceProvided {
-		if enrichErr := ensureRecurringPatchDateTimes(ctx, svc, calendarID, targetEventID, patch); enrichErr != nil {
+		if enrichErr := ensureRecurringPatchDateTimes(ctx, mutation.svc, mutation.calendarID, targetEventID, patch); enrichErr != nil {
 			return enrichErr
 		}
 	}
 
-	call := svc.Events.Patch(calendarID, targetEventID, patch).Context(ctx)
-	if sendUpdates != "" {
-		call = call.SendUpdates(sendUpdates)
-	}
-	updated, err := call.Do()
+	updated, err := mutation.patchEvent(targetEventID, patch, sendUpdates)
 	if err != nil {
 		return err
 	}
 	if scope == scopeFuture {
-		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
+		if err := truncateParentRecurrence(ctx, mutation.svc, mutation.calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
 			return err
 		}
 	}
-	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
-	}
-	printCalendarEventWithTimezone(u, updated, tz, loc)
-	return nil
+	return mutation.writeEvent(updated)
 }
 
 func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Event, bool, error) {
@@ -858,16 +816,7 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
@@ -875,7 +824,7 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	targetEventID := eventID
 	var parentRecurrence []string
 	if scope == scopeFuture {
-		parent, getErr := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+		parent, getErr := mutation.svc.Events.Get(mutation.calendarID, eventID).Context(ctx).Do()
 		if getErr != nil {
 			return getErr
 		}
@@ -885,18 +834,14 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		parentRecurrence = parent.Recurrence
 	}
 	if scope == scopeSingle || scope == scopeFuture {
-		instanceID, resolveErr := resolveRecurringInstanceID(ctx, svc, calendarID, eventID, c.OriginalStartTime)
+		instanceID, resolveErr := resolveRecurringInstanceID(ctx, mutation.svc, mutation.calendarID, eventID, c.OriginalStartTime)
 		if resolveErr != nil {
 			return resolveErr
 		}
 		targetEventID = instanceID
 	}
 
-	deleteCall := svc.Events.Delete(calendarID, targetEventID).Context(ctx)
-	if sendUpdates != "" {
-		deleteCall = deleteCall.SendUpdates(sendUpdates)
-	}
-	if err := deleteCall.Do(); err != nil {
+	if err := mutation.deleteEvent(targetEventID, sendUpdates); err != nil {
 		return err
 	}
 	if scope == scopeFuture {
@@ -904,18 +849,14 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if truncateErr != nil {
 			return truncateErr
 		}
-		patchCall := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
-		if sendUpdates != "" {
-			patchCall = patchCall.SendUpdates(sendUpdates)
-		}
-		_, patchErr := patchCall.Do()
+		_, patchErr := mutation.patchEvent(eventID, &calendar.Event{Recurrence: truncated}, sendUpdates)
 		if patchErr != nil {
 			return patchErr
 		}
 	}
 	return writeResult(ctx, u,
 		kv("deleted", true),
-		kv("calendarId", calendarID),
+		kv("calendarId", mutation.calendarID),
 		kv("eventId", targetEventID),
 	)
 }
