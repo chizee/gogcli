@@ -32,12 +32,7 @@ type GmailDraftsListCmd struct {
 
 func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -54,20 +49,9 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Drafts, resp.NextPageToken, nil
 	}
 
-	var drafts []*gmail.Draft
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		drafts = all
-	} else {
-		var err error
-		drafts, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	drafts, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -87,16 +71,10 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			items = append(items, item{ID: d.Id, MessageID: msgID, ThreadID: threadID})
 		}
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return writePagedJSONResult(ctx, map[string]any{
 			"drafts":        items,
 			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
-		}
-		if len(items) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
+		}, len(items), c.FailEmpty)
 	}
 	if len(drafts) == 0 {
 		u.Err().Println("No drafts")
@@ -124,16 +102,12 @@ type GmailDraftsGetCmd struct {
 
 func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	draftID := strings.TrimSpace(c.DraftID)
 	if draftID == "" {
 		return usage("empty draftId")
 	}
 
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -220,12 +194,7 @@ func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -256,12 +225,7 @@ func (c *GmailDraftsSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -547,12 +511,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -650,12 +609,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}

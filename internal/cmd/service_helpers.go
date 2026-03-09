@@ -3,16 +3,14 @@ package cmd
 import (
 	"context"
 
+	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/gmail/v1"
 )
 
 func requireDocsService(ctx context.Context, flags *RootFlags) (*docs.Service, error) {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return nil, err
-	}
-	svc, err := newDocsService(ctx, account)
+	_, svc, err := requireGoogleService(ctx, flags, newDocsService)
 	if err != nil {
 		return nil, err
 	}
@@ -20,11 +18,23 @@ func requireDocsService(ctx context.Context, flags *RootFlags) (*docs.Service, e
 }
 
 func requireDriveService(ctx context.Context, flags *RootFlags) (string, *drive.Service, error) {
+	return requireGoogleService(ctx, flags, newDriveService)
+}
+
+func requireCalendarService(ctx context.Context, flags *RootFlags) (string, *calendar.Service, error) {
+	return requireGoogleService(ctx, flags, newCalendarService)
+}
+
+func requireGmailService(ctx context.Context, flags *RootFlags) (string, *gmail.Service, error) {
+	return requireGoogleService(ctx, flags, newGmailService)
+}
+
+func requireGoogleService[T any](ctx context.Context, flags *RootFlags, newService func(context.Context, string) (*T, error)) (string, *T, error) {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return "", nil, err
 	}
-	svc, err := newDriveService(ctx, account)
+	svc, err := newService(ctx, account)
 	if err != nil {
 		return "", nil, err
 	}
