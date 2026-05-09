@@ -52,11 +52,12 @@ jobs:
         env:
           MACOS_SIGNING_CERT_BASE64: ${{ secrets.MACOS_SIGNING_CERT_BASE64 }}
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
         run: |
           set -euo pipefail
-          if [ -z "$MACOS_SIGNING_CERT_BASE64" ]; then
-            echo "No macOS signing certificate configured; skipping import."
-            exit 0
+          if [ -z "$MACOS_SIGNING_CERT_BASE64" ] || [ -z "$MACOS_SIGNING_CERT_PASSWORD" ] || [ -z "$MACOS_CODESIGN_IDENTITY" ]; then
+            echo "::error::Set MACOS_SIGNING_CERT_BASE64, MACOS_SIGNING_CERT_PASSWORD, and MACOS_CODESIGN_IDENTITY before releasing signed macOS artifacts."
+            exit 1
           fi
 
           KEYCHAIN="build.keychain"

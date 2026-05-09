@@ -13,8 +13,8 @@ fi
 
 IDENTITY="${GOG_CODESIGN_IDENTITY:-${CODESIGN_IDENTITY:-}}"
 if [[ -z "$IDENTITY" ]]; then
-  echo "codesign: skipped (set GOG_CODESIGN_IDENTITY or CODESIGN_IDENTITY)" >&2
-  exit 0
+  echo "codesign: missing release identity (set GOG_CODESIGN_IDENTITY or CODESIGN_IDENTITY)" >&2
+  exit 2
 fi
 
 ID="com.steipete.gogcli.gog"

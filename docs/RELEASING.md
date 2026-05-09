@@ -24,7 +24,9 @@ Assumptions:
 - Go toolchain installed (Go version comes from `go.mod`).
 - `make` works locally.
 - Access to the tap repo (e.g. `steipete/homebrew-tap`).
-- For signed macOS release binaries (recommended): GitHub Actions secrets set:
+- For signed macOS release binaries (required):
+  GitHub Actions secrets must be set, or the release workflow fails before
+  producing Darwin artifacts:
   - `MACOS_SIGNING_CERT_BASE64` (base64-encoded `.p12`)
   - `MACOS_SIGNING_CERT_PASSWORD`
   - `MACOS_CODESIGN_IDENTITY` (e.g. `Developer ID Application: …`)
@@ -66,6 +68,8 @@ gh release view vX.Y.Z
 ```
 
 Ensure GitHub release notes are not empty (mirror the changelog section).
+The release workflow fails closed if macOS signing secrets are missing; Darwin
+artifacts must be signed with a stable identity, not ad-hoc/linker signatures.
 
 If the workflow needs a rerun:
 ```sh
@@ -118,3 +122,5 @@ gog --help
 
 ## Notes
 - `gog --version` / `gog version` should report the release version post-install.
+- `scripts/verify-release.sh` checks Darwin release assets with `codesign` on
+  macOS and rejects ad-hoc signatures or missing TeamIdentifier values.
