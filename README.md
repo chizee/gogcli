@@ -177,6 +177,8 @@ gog sheets banding set <spreadsheetId> 'Sheet1!A1:D100'
 ```bash
 gog slides create-from-markdown "Weekly update" --content-file slides.md
 gog slides insert-text <presentationId> <objectId> "New text"
+gog forms update <formId> --quiz=true
+gog forms add-question <formId> --title "What is 2+2?" --type radio -o 1 -o 4 --correct 4 --points 1
 gog forms publish <formId>
 gog forms responses list <formId> --json
 gog forms raw <formId> --pretty

@@ -22,6 +22,7 @@ gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
+| `--correct` | `[]string` |  | Correct answer value for quiz grading (repeat for multiple accepted/checkbox answers) |
 | `--description` | `string` |  | Question description/help text |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
@@ -37,6 +38,7 @@ gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-o`<br>`--option` | `[]string` |  | Choice options (for radio/checkbox/dropdown, repeat for each) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--points` | `int` |  | Positive quiz points for the question when --correct is set |
 | `--required` | `bool` |  | Whether an answer is required |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--scale-high` | `int` | 5 | Scale maximum value |

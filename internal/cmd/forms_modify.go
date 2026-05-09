@@ -21,6 +21,8 @@ type FormsAddQuestionCmd struct {
 	Required bool     `name:"required" help:"Whether an answer is required"`
 	Options  []string `name:"option" help:"Choice options (for radio/checkbox/dropdown, repeat for each)" short:"o"`
 	Index    int      `name:"index" help:"Position to insert (0-based, default append)" default:"-1"`
+	Correct  []string `name:"correct" help:"Correct answer value for quiz grading (repeat for multiple accepted/checkbox answers)"`
+	Points   int      `name:"points" help:"Positive quiz points for the question when --correct is set"`
 
 	// Scale-specific
 	ScaleLow       int    `name:"scale-low" help:"Scale minimum value" default:"1"`
@@ -63,6 +65,8 @@ func (c *FormsAddQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"required":    c.Required,
 		"options":     c.Options,
 		"index":       c.Index,
+		"correct":     c.Correct,
+		"points":      c.Points,
 		"description": c.Description,
 	}); dryRunErr != nil {
 		return dryRunErr
@@ -193,7 +197,55 @@ func buildQuestion(qType string, c *FormsAddQuestionCmd) (*formsapi.Question, er
 		return nil, usage("unknown question type: " + qType + " (use text|paragraph|radio|checkbox|dropdown|scale|date|time)")
 	}
 
+	if err := applyQuestionGrading(q, qType, c); err != nil {
+		return nil, err
+	}
+
 	return q, nil
+}
+
+func applyQuestionGrading(q *formsapi.Question, qType string, c *FormsAddQuestionCmd) error {
+	correct := cleanedStrings(c.Correct)
+	hasCorrect := len(correct) > 0
+	hasPoints := c.Points > 0
+	if !hasCorrect && !hasPoints {
+		return nil
+	}
+	if !hasCorrect {
+		return usage("--points requires at least one --correct answer")
+	}
+	if !hasPoints {
+		return usage("--correct requires --points")
+	}
+	switch qType {
+	case "text", "radio", "checkbox", "dropdown":
+	default:
+		return usage("--correct is supported only for text, radio, checkbox, and dropdown questions")
+	}
+
+	answers := make([]*formsapi.CorrectAnswer, len(correct))
+	for i, value := range correct {
+		answers[i] = &formsapi.CorrectAnswer{Value: value}
+	}
+	q.Grading = &formsapi.Grading{
+		PointValue:     int64(c.Points),
+		CorrectAnswers: &formsapi.CorrectAnswers{Answers: answers},
+		ForceSendFields: []string{
+			"PointValue",
+		},
+	}
+	return nil
+}
+
+func cleanedStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 // FormsDeleteQuestionCmd removes a question from a form by index.
