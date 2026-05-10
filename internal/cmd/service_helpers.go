@@ -7,7 +7,9 @@ import (
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/driveactivity/v2"
 	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/meet/v2"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -23,6 +25,10 @@ func requireDriveService(ctx context.Context, flags *RootFlags) (string, *drive.
 	return requireGoogleService(ctx, flags, newDriveService)
 }
 
+func requireDriveActivityService(ctx context.Context, flags *RootFlags) (string, *driveactivity.Service, error) {
+	return requireGoogleService(ctx, flags, newDriveActivityService)
+}
+
 func requireCalendarService(ctx context.Context, flags *RootFlags) (string, *calendar.Service, error) {
 	return requireGoogleService(ctx, flags, newCalendarService)
 }
@@ -33,6 +39,10 @@ func requireGmailService(ctx context.Context, flags *RootFlags) (string, *gmail.
 
 func requireClassroomService(ctx context.Context, flags *RootFlags) (string, *classroom.Service, error) {
 	return requireGoogleService(ctx, flags, newClassroomService)
+}
+
+func requireMeetService(ctx context.Context, flags *RootFlags) (string, *meet.Service, error) {
+	return requireGoogleService(ctx, flags, newMeetService)
 }
 
 func requireSheetsService(ctx context.Context, flags *RootFlags) (string, *sheets.Service, error) {

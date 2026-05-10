@@ -14,10 +14,14 @@ import (
 type File struct {
 	KeyringBackend  string            `json:"keyring_backend,omitempty"`
 	DefaultTimezone string            `json:"default_timezone,omitempty"`
+	YoutubeAPIKey   string            `json:"youtube_api_key,omitempty"`
+	PlacesAPIKey    string            `json:"places_api_key,omitempty"`
 	AccountAliases  map[string]string `json:"account_aliases,omitempty"`
 	AccountClients  map[string]string `json:"account_clients,omitempty"`
 	ClientDomains   map[string]string `json:"client_domains,omitempty"`
 	CalendarAliases map[string]string `json:"calendar_aliases,omitempty"`
+	GmailNoSend     bool              `json:"gmail_no_send,omitempty"`
+	NoSendAccounts  map[string]bool   `json:"no_send_accounts,omitempty"`
 }
 
 var errConfigLockTimeout = errors.New("acquire config lock timeout")

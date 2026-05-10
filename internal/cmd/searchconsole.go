@@ -24,6 +24,12 @@ var newSearchConsoleService = googleapi.NewSearchConsole
 const (
 	defaultSearchConsoleRowLimit = int64(1000)
 	maxSearchConsoleRowLimit     = int64(25000)
+
+	searchConsoleGroupAnd          = "AND"
+	searchConsoleTypeWeb           = "WEB"
+	searchConsoleAggregationByPage = "BY_PAGE"
+	searchConsoleDimensionQuery    = "QUERY"
+	searchConsoleDimensionPage     = "PAGE"
 )
 
 type SearchConsoleCmd struct {
@@ -238,8 +244,8 @@ func (c *SearchConsoleQueryCmd) buildRequest() (*searchconsoleapi.SearchAnalytic
 	if err != nil {
 		return nil, err
 	}
-	if err := validateSearchConsoleDateRange(from, to); err != nil {
-		return nil, err
+	if rangeErr := validateSearchConsoleDateRange(from, to); rangeErr != nil {
+		return nil, rangeErr
 	}
 
 	if c.Max <= 0 || c.Max > maxSearchConsoleRowLimit {
@@ -293,7 +299,7 @@ func (c *SearchConsoleQueryCmd) buildRequest() (*searchconsoleapi.SearchAnalytic
 		}
 		req.DimensionFilterGroups = []*searchconsoleapi.ApiDimensionFilterGroup{
 			{
-				GroupType: "and",
+				GroupType: searchConsoleGroupAnd,
 				Filters:   filters,
 			},
 		}
@@ -520,8 +526,8 @@ func buildSearchConsoleRequestFromSpec(spec string) (*searchconsoleapi.SearchAna
 	}
 
 	var req searchconsoleapi.SearchAnalyticsQueryRequest
-	if err := json.Unmarshal(b, &req); err != nil {
-		return nil, fmt.Errorf("decode search console request: %w", err)
+	if unmarshalErr := json.Unmarshal(b, &req); unmarshalErr != nil {
+		return nil, fmt.Errorf("decode search console request: %w", unmarshalErr)
 	}
 
 	if req.RowLimit == 0 {
@@ -533,14 +539,14 @@ func buildSearchConsoleRequestFromSpec(spec string) (*searchconsoleapi.SearchAna
 	if req.StartRow < 0 {
 		return nil, usage("request.startRow must be >= 0")
 	}
-	if err := validateSearchConsoleDateRange(req.StartDate, req.EndDate); err != nil {
-		return nil, err
+	if rangeErr := validateSearchConsoleDateRange(req.StartDate, req.EndDate); rangeErr != nil {
+		return nil, rangeErr
 	}
 
 	if len(req.Dimensions) > 0 {
-		dimensions, err := normalizeSearchConsoleDimensionList(req.Dimensions)
-		if err != nil {
-			return nil, err
+		dimensions, dimErr := normalizeSearchConsoleDimensionList(req.Dimensions)
+		if dimErr != nil {
+			return nil, dimErr
 		}
 		req.Dimensions = dimensions
 	}
@@ -549,7 +555,7 @@ func buildSearchConsoleRequestFromSpec(spec string) (*searchconsoleapi.SearchAna
 		req.Type = req.SearchType
 	}
 	if req.Type == "" {
-		req.Type = "web"
+		req.Type = searchConsoleTypeWeb
 	}
 	searchType, err := normalizeSearchConsoleType(req.Type)
 	if err != nil {
@@ -578,12 +584,12 @@ func buildSearchConsoleRequestFromSpec(spec string) (*searchconsoleapi.SearchAna
 			continue
 		}
 		if strings.TrimSpace(group.GroupType) == "" {
-			group.GroupType = "and"
+			group.GroupType = searchConsoleGroupAnd
 		}
 		if !strings.EqualFold(strings.TrimSpace(group.GroupType), "and") {
 			return nil, usagef("invalid request.groupType %q (expected and)", group.GroupType)
 		}
-		group.GroupType = "and"
+		group.GroupType = searchConsoleGroupAnd
 		for _, filter := range group.Filters {
 			if filter == nil {
 				continue
@@ -651,18 +657,18 @@ func normalizeSearchConsoleType(raw string) (string, error) {
 	v := strings.TrimSpace(raw)
 	switch {
 	case strings.EqualFold(v, "web"):
-		return "web", nil
+		return searchConsoleTypeWeb, nil
 	case strings.EqualFold(v, "image"):
-		return "image", nil
+		return "IMAGE", nil
 	case strings.EqualFold(v, "video"):
-		return "video", nil
+		return "VIDEO", nil
 	case strings.EqualFold(v, "news"):
-		return "news", nil
+		return "NEWS", nil
 	case strings.EqualFold(v, "discover"):
-		return "discover", nil
+		return "DISCOVER", nil
 	case strings.EqualFold(strings.ReplaceAll(v, "_", ""), "googleNews"),
 		strings.EqualFold(strings.ReplaceAll(v, "-", ""), "googleNews"):
-		return "googleNews", nil
+		return "GOOGLE_NEWS", nil
 	case v == "":
 		return "", usage("empty --type")
 	default:
@@ -676,13 +682,13 @@ func normalizeSearchConsoleAggregation(raw string) (string, error) {
 	case v == "":
 		return "", nil
 	case strings.EqualFold(v, "auto"):
-		return "auto", nil
+		return "AUTO", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "byProperty"):
-		return "byProperty", nil
+		return "BY_PROPERTY", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "byPage"):
-		return "byPage", nil
+		return searchConsoleAggregationByPage, nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "byNewsShowcasePanel"):
-		return "byNewsShowcasePanel", nil
+		return "BY_NEWS_SHOWCASE_PANEL", nil
 	default:
 		return "", usagef("invalid --aggregation %q (expected AUTO|BY_PROPERTY|BY_PAGE|BY_NEWS_SHOWCASE_PANEL)", raw)
 	}
@@ -694,11 +700,11 @@ func normalizeSearchConsoleDataState(raw string) (string, error) {
 	case v == "":
 		return "", nil
 	case strings.EqualFold(v, "final"):
-		return "final", nil
+		return "FINAL", nil
 	case strings.EqualFold(v, "all"):
-		return "all", nil
+		return "ALL", nil
 	case strings.EqualFold(strings.ReplaceAll(v, "-", "_"), "hourly_all"):
-		return "hourly_all", nil
+		return "HOURLY_ALL", nil
 	default:
 		return "", usagef("invalid --data-state %q (expected FINAL|ALL|HOURLY_ALL)", raw)
 	}
@@ -728,19 +734,19 @@ func normalizeSearchConsoleDimension(raw string) (string, error) {
 	v := strings.TrimSpace(raw)
 	switch {
 	case strings.EqualFold(v, "date"):
-		return "date", nil
+		return "DATE", nil
 	case strings.EqualFold(v, "query"):
-		return "query", nil
+		return searchConsoleDimensionQuery, nil
 	case strings.EqualFold(v, "page"):
-		return "page", nil
+		return searchConsoleDimensionPage, nil
 	case strings.EqualFold(v, "country"):
-		return "country", nil
+		return "COUNTRY", nil
 	case strings.EqualFold(v, "device"):
-		return "device", nil
+		return "DEVICE", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "searchAppearance"):
-		return "searchAppearance", nil
+		return "SEARCH_APPEARANCE", nil
 	case strings.EqualFold(v, "hour"):
-		return "hour", nil
+		return "HOUR", nil
 	case v == "":
 		return "", usage("empty dimension")
 	default:
@@ -790,17 +796,17 @@ func normalizeSearchConsoleFilterOperator(raw string) (string, error) {
 	case v == "":
 		return "", usage("empty filter operator")
 	case strings.EqualFold(v, "equals"):
-		return "equals", nil
+		return "EQUALS", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "notEquals"):
-		return "notEquals", nil
+		return "NOT_EQUALS", nil
 	case strings.EqualFold(v, "contains"):
-		return "contains", nil
+		return "CONTAINS", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "notContains"):
-		return "notContains", nil
+		return "NOT_CONTAINS", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "includingRegex"):
-		return "includingRegex", nil
+		return "INCLUDING_REGEX", nil
 	case strings.EqualFold(strings.ReplaceAll(strings.ReplaceAll(v, "_", ""), "-", ""), "excludingRegex"):
-		return "excludingRegex", nil
+		return "EXCLUDING_REGEX", nil
 	default:
 		return "", usagef("invalid filter operator %q (expected EQUALS|NOT_EQUALS|CONTAINS|NOT_CONTAINS|INCLUDING_REGEX|EXCLUDING_REGEX)", raw)
 	}
@@ -873,7 +879,7 @@ func wrapSearchConsoleError(err error) error {
 	message := strings.ToLower(apiErr.Message)
 	switch {
 	case strings.Contains(message, "accessnotconfigured"), strings.Contains(message, "api has not been used"):
-		return fmt.Errorf("Search Console API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/api/searchconsole.googleapis.com")
+		return fmt.Errorf("search console API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/api/searchconsole.googleapis.com")
 	case strings.Contains(message, "insufficientpermissions"), strings.Contains(message, "insufficient permission"):
 		return fmt.Errorf("insufficient permissions for Search Console API. Re-authorize with: gog auth add <email> --services searchconsole")
 	default:

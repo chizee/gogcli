@@ -36,19 +36,19 @@ func TestSearchConsoleQueryCmd_BuildRequest(t *testing.T) {
 	if req.RowLimit != 250 || req.StartRow != 10 {
 		t.Fatalf("unexpected pagination: limit=%d startRow=%d", req.RowLimit, req.StartRow)
 	}
-	if len(req.Dimensions) != 2 || req.Dimensions[0] != "query" || req.Dimensions[1] != "page" {
+	if len(req.Dimensions) != 2 || req.Dimensions[0] != "QUERY" || req.Dimensions[1] != "PAGE" {
 		t.Fatalf("unexpected dimensions: %#v", req.Dimensions)
 	}
-	if req.Type != "web" || req.AggregationType != "byPage" || req.DataState != "final" {
+	if req.Type != "WEB" || req.AggregationType != "BY_PAGE" || req.DataState != "FINAL" {
 		t.Fatalf("unexpected query options: %#v", req)
 	}
-	if len(req.DimensionFilterGroups) != 1 || req.DimensionFilterGroups[0].GroupType != "and" {
+	if len(req.DimensionFilterGroups) != 1 || req.DimensionFilterGroups[0].GroupType != "AND" {
 		t.Fatalf("unexpected filter groups: %#v", req.DimensionFilterGroups)
 	}
 	if len(req.DimensionFilterGroups[0].Filters) != 2 {
 		t.Fatalf("unexpected filter count: %#v", req.DimensionFilterGroups[0].Filters)
 	}
-	if req.DimensionFilterGroups[0].Filters[0].Dimension != "query" || req.DimensionFilterGroups[0].Filters[0].Operator != "contains" {
+	if req.DimensionFilterGroups[0].Filters[0].Dimension != "QUERY" || req.DimensionFilterGroups[0].Filters[0].Operator != "CONTAINS" {
 		t.Fatalf("unexpected first filter: %#v", req.DimensionFilterGroups[0].Filters[0])
 	}
 }
@@ -70,17 +70,17 @@ func TestSearchConsoleQueryCmd_BuildRequestFromJSON(t *testing.T) {
 		if req.RowLimit != 50 {
 			t.Fatalf("unexpected rowLimit: %d", req.RowLimit)
 		}
-		if req.Type != "image" || req.SearchType != "image" {
+		if req.Type != "IMAGE" || req.SearchType != "IMAGE" {
 			t.Fatalf("unexpected type fields: type=%q searchType=%q", req.Type, req.SearchType)
 		}
-		if len(req.Dimensions) != 2 || req.Dimensions[0] != "query" || req.Dimensions[1] != "searchAppearance" {
+		if len(req.Dimensions) != 2 || req.Dimensions[0] != "QUERY" || req.Dimensions[1] != "SEARCH_APPEARANCE" {
 			t.Fatalf("unexpected dimensions: %#v", req.Dimensions)
 		}
-		if len(req.DimensionFilterGroups) != 1 || req.DimensionFilterGroups[0].GroupType != "and" {
+		if len(req.DimensionFilterGroups) != 1 || req.DimensionFilterGroups[0].GroupType != "AND" {
 			t.Fatalf("unexpected filter groups: %#v", req.DimensionFilterGroups)
 		}
 		filter := req.DimensionFilterGroups[0].Filters[0]
-		if filter.Dimension != "page" || filter.Operator != "notContains" || filter.Expression != "draft" {
+		if filter.Dimension != "PAGE" || filter.Operator != "NOT_CONTAINS" || filter.Expression != "draft" {
 			t.Fatalf("unexpected filter: %#v", filter)
 		}
 	})
@@ -152,7 +152,7 @@ func TestExecute_SearchConsoleSearchAnalyticsQuery_JSON(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if req["aggregationType"] != "byPage" || req["dataState"] != "final" || req["type"] != "web" {
+		if req["aggregationType"] != "BY_PAGE" || req["dataState"] != "FINAL" || req["type"] != "WEB" {
 			t.Fatalf("unexpected request payload: %#v", req)
 		}
 		filterGroups, ok := req["dimensionFilterGroups"].([]any)
@@ -215,7 +215,7 @@ func TestExecute_SearchConsoleSearchAnalyticsQuery_JSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if parsed.Type != "web" || parsed.ResponseAggregationType != "BY_PAGE" || len(parsed.Rows) != 1 {
+	if parsed.Type != "WEB" || parsed.ResponseAggregationType != "BY_PAGE" || len(parsed.Rows) != 1 {
 		t.Fatalf("unexpected payload: %#v", parsed)
 	}
 }

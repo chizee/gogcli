@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -366,6 +368,78 @@ func TestGmailSendCmd_RunJSON(t *testing.T) {
 	}
 }
 
+func TestGmailSendCmd_BodyHTMLFile(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	dir := t.TempDir()
+	htmlPath := filepath.Join(dir, "body.html")
+	if err := os.WriteFile(htmlPath, []byte("<h1>Hello</h1>\n<p>from file</p>"), 0o600); err != nil {
+		t.Fatalf("write html: %v", err)
+	}
+
+	var rawSent string
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method == http.MethodPost && path == "/users/me/messages/send" {
+			var msg gmail.Message
+			if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+				t.Fatalf("decode sent message: %v", err)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(msg.Raw)
+			if err != nil {
+				t.Fatalf("decode raw message: %v", err)
+			}
+			rawSent = string(raw)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m-html",
+				"threadId": "t-html",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})
+	defer cleanup()
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:           "a@example.com",
+		Subject:      "Hello",
+		BodyHTMLFile: htmlPath,
+	}
+
+	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(rawSent, "Content-Type: text/html") || !strings.Contains(rawSent, "<h1>Hello</h1>") {
+		t.Fatalf("expected HTML file body in sent message, got: %q", rawSent)
+	}
+}
+
+func TestGmailSendCmd_BodyHTMLFileConflict(t *testing.T) {
+	cmd := &GmailSendCmd{
+		To:           "a@example.com",
+		Subject:      "Hello",
+		BodyHTML:     "<p>inline</p>",
+		BodyHTMLFile: "/tmp/body.html",
+	}
+
+	err := cmd.Run(context.Background(), &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatalf("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "--body-html") || !strings.Contains(err.Error(), "--body-html-file") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
@@ -701,6 +775,185 @@ func TestGmailSendCmd_RunJSON_PrimaryAccountDisplayNameFallbackToList(t *testing
 	})
 	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "Primary User <a@b.com>") {
 		t.Fatalf("expected from with display name, got: %q", out)
+	}
+}
+
+func TestGmailSendCmd_RunJSON_PrimaryAccountDisplayNameFallbackToPeople(t *testing.T) {
+	origGmail := newGmailService
+	origPeople := newPeopleContactsService
+	t.Cleanup(func() {
+		newGmailService = origGmail
+		newPeopleContactsService = origPeople
+	})
+
+	var rawSent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{
+						"sendAsEmail":        "a@b.com",
+						"verificationStatus": "accepted",
+						"isPrimary":          true,
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/people/me"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resourceName": "people/me",
+				"names":        []map[string]any{{"displayName": "People User"}},
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			var msg gmail.Message
+			if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+				t.Fatalf("decode sent message: %v", err)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(msg.Raw)
+			if err != nil {
+				t.Fatalf("decode raw message: %v", err)
+			}
+			rawSent = string(raw)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m3c",
+				"threadId": "t3c",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	gmailSvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewGmailService: %v", err)
+	}
+	peopleSvc, err := people.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewPeopleService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return gmailSvc, nil }
+	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return peopleSvc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:      "recipient@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "People User <a@b.com>") {
+		t.Fatalf("expected from with People display name, got: %q", out)
+	}
+	if !strings.Contains(rawSent, `From: "People User" <a@b.com>`) {
+		t.Fatalf("expected raw From header to use People display name, got: %q", rawSent)
+	}
+}
+
+func TestGmailSendCmd_RunJSON_PrimaryAccountPeopleFallbackFailureIgnored(t *testing.T) {
+	origGmail := newGmailService
+	origPeople := newPeopleContactsService
+	t.Cleanup(func() {
+		newGmailService = origGmail
+		newPeopleContactsService = origPeople
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{
+						"sendAsEmail":        "a@b.com",
+						"verificationStatus": "accepted",
+						"isPrimary":          true,
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/people/me"):
+			http.Error(w, "People API unavailable", http.StatusForbidden)
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m3d",
+				"threadId": "t3d",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	gmailSvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewGmailService: %v", err)
+	}
+	peopleSvc, err := people.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewPeopleService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return gmailSvc, nil }
+	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return peopleSvc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:      "recipient@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"from\": \"a@b.com\"") {
+		t.Fatalf("expected bare from when People fallback fails, got: %q", out)
 	}
 }
 

@@ -31,6 +31,42 @@ func TestBuildQuestion(t *testing.T) {
 			t.Fatalf("expected required question")
 		}
 	})
+
+	t.Run("quiz grading", func(t *testing.T) {
+		q, err := buildQuestion("radio", &FormsAddQuestionCmd{
+			Options: []string{"1", "2", "4"},
+			Correct: []string{
+				"4",
+			},
+			Points: 2,
+		})
+		if err != nil {
+			t.Fatalf("buildQuestion: %v", err)
+		}
+		if q.Grading == nil || q.Grading.PointValue != 2 {
+			t.Fatalf("missing grading: %#v", q.Grading)
+		}
+		if got := q.Grading.CorrectAnswers.Answers[0].Value; got != "4" {
+			t.Fatalf("correct answer = %q", got)
+		}
+	})
+
+	t.Run("quiz grading validation", func(t *testing.T) {
+		_, err := buildQuestion("radio", &FormsAddQuestionCmd{
+			Options: []string{"1", "2"},
+			Correct: []string{
+				"2",
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "--correct requires --points") {
+			t.Fatalf("expected points validation, got %v", err)
+		}
+
+		_, err = buildQuestion("scale", &FormsAddQuestionCmd{Correct: []string{"5"}, Points: 1})
+		if err == nil || !strings.Contains(err.Error(), "supported only") {
+			t.Fatalf("expected type validation, got %v", err)
+		}
+	})
 }
 
 func TestFormsAddQuestionAppend(t *testing.T) {
@@ -91,6 +127,63 @@ func TestFormsAddQuestionAppend(t *testing.T) {
 	}
 	if req.Item.QuestionItem.Question.ChoiceQuestion.Type != "RADIO" {
 		t.Fatalf("unexpected choice type: %#v", req.Item.QuestionItem.Question.ChoiceQuestion)
+	}
+}
+
+func TestFormsAddQuestionAppendWithGrading(t *testing.T) {
+	origNew := newFormsService
+	t.Cleanup(func() { newFormsService = origNew })
+
+	var gotBatch formsapi.BatchUpdateFormRequest
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/v1/forms/form1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"formId": "form1"})
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/v1/forms/form1:batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&gotBatch); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"form": map[string]any{
+					"formId": "form1",
+					"items":  []map[string]any{{}},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	newFormsService = func(ctx context.Context, account string) (*formsapi.Service, error) {
+		return newFormsTestService(t, ctx, srv), nil
+	}
+
+	err := runKong(t, &FormsAddQuestionCmd{}, []string{
+		"form1",
+		"--title", "What is 2+2?",
+		"--type", "radio",
+		"--option", "1",
+		"--option", "4",
+		"--correct", "4",
+		"--points", "1",
+	}, newQuietUIContext(t), &RootFlags{Account: "a@b.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	req := gotBatch.Requests[0].CreateItem.Item.QuestionItem.Question
+	if req.Grading == nil {
+		t.Fatalf("missing grading in request: %#v", req)
+	}
+	if req.Grading.PointValue != 1 {
+		t.Fatalf("point value = %d", req.Grading.PointValue)
+	}
+	if got := req.Grading.CorrectAnswers.Answers[0].Value; got != "4" {
+		t.Fatalf("correct answer = %q", got)
 	}
 }
 

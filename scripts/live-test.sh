@@ -28,6 +28,7 @@ Options:
 Skip keys (base):
   time, version, completion, auth, auth-alias, config, enable-commands,
   gmail, gmail-settings, gmail-delegates, gmail-batch-delete, gmail-history, gmail-url, gmail-labels,
+  gmail-send-safety, gmail-forward,
   gmail-attachments, gmail-track, gmail-watch, drive, docs, sheets, slides,
   calendar, calendar-enterprise, calendar-respond, calendar-team, calendar-users,
   tasks, contacts, people, groups, keep, classroom
@@ -158,6 +159,7 @@ source "$ROOT_DIR/scripts/live-tests/contacts.sh"
 source "$ROOT_DIR/scripts/live-tests/people.sh"
 source "$ROOT_DIR/scripts/live-tests/workspace.sh"
 source "$ROOT_DIR/scripts/live-tests/classroom.sh"
+source "$ROOT_DIR/scripts/live-tests/meet.sh"
 
 ensure_test_account
 
@@ -186,5 +188,6 @@ run_contacts_tests
 run_people_tests
 run_workspace_tests
 run_classroom_tests
+run_meet_tests
 
 echo "Live tests complete."

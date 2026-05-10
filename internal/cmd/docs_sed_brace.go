@@ -232,7 +232,7 @@ func parseBraceKeyValue(key, val string, expr *braceExpr) error {
 
 	// Value flags
 	switch key {
-	case "t", "text":
+	case "t", gmailMessageBodyFormatText:
 		expr.Text = val
 	case "c", "color":
 		expr.Color = resolveColor(val)

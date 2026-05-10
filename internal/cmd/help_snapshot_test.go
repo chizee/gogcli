@@ -38,7 +38,7 @@ func TestHelpSnapshot_Auth(t *testing.T) {
 func TestHelpSnapshot_DocsUpdate(t *testing.T) {
 	out := captureHelpOutput(t, "docs", "update", "--help")
 	requireHelpContains(t, out,
-		"--tab-id",
+		"--tab",
 		"--text",
 		"--file",
 		"--index",
@@ -63,6 +63,18 @@ func TestHelpSnapshot_Forms(t *testing.T) {
 		"\n  update",
 		"\n  add-question",
 		"\n  watch",
+	)
+}
+
+func TestHelpSnapshot_Meet(t *testing.T) {
+	out := captureHelpOutput(t, "meet", "--help")
+	requireHelpContains(t, out,
+		"\n  create",
+		"\n  get",
+		"\n  update",
+		"\n  end",
+		"\n  history",
+		"\n  participants",
 	)
 }
 

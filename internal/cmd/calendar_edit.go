@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -16,8 +17,14 @@ type CalendarCreateCmd struct {
 	Summary               string   `name:"summary" help:"Event summary/title"`
 	From                  string   `name:"from" help:"Start time (RFC3339)"`
 	To                    string   `name:"to" help:"End time (RFC3339)"`
+	StartTimezone         string   `name:"start-timezone" aliases:"from-timezone" help:"IANA timezone metadata for --from (e.g., Europe/Rome)"`
+	EndTimezone           string   `name:"end-timezone" aliases:"to-timezone" help:"IANA timezone metadata for --to (e.g., America/New_York)"`
 	Description           string   `name:"description" help:"Description"`
 	Location              string   `name:"location" help:"Location"`
+	LocationSearch        string   `name:"location-search" help:"Resolve a Google Places text search and use the best match as event location"`
+	PlaceID               string   `name:"place-id" help:"Resolve a Google Places ID and use it as event location"`
+	PlaceLanguage         string   `name:"place-language" help:"Places API language code for location lookup"`
+	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated." sep:"none"`
@@ -47,9 +54,14 @@ type CalendarCreateCmd struct {
 	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
 	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
+	resolvedPlace         *calendarPlace
 }
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if err := c.resolvePlace(ctx); err != nil {
+		return err
+	}
+
 	plan, err := buildCalendarCreatePlan(c)
 	if err != nil {
 		return err
@@ -204,8 +216,14 @@ type CalendarUpdateCmd struct {
 	Summary               string   `name:"summary" help:"New summary/title (set empty to clear)"`
 	From                  string   `name:"from" help:"New start time (RFC3339; set empty to clear)"`
 	To                    string   `name:"to" help:"New end time (RFC3339; set empty to clear)"`
+	StartTimezone         string   `name:"start-timezone" aliases:"from-timezone" help:"IANA timezone metadata for --from (e.g., Europe/Rome)"`
+	EndTimezone           string   `name:"end-timezone" aliases:"to-timezone" help:"IANA timezone metadata for --to (e.g., America/New_York)"`
 	Description           string   `name:"description" help:"New description (set empty to clear)"`
 	Location              string   `name:"location" help:"New location (set empty to clear)"`
+	LocationSearch        string   `name:"location-search" help:"Resolve a Google Places text search and use the best match as event location"`
+	PlaceID               string   `name:"place-id" help:"Resolve a Google Places ID and use it as event location"`
+	PlaceLanguage         string   `name:"place-language" help:"Places API language code for location lookup"`
+	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
@@ -217,6 +235,8 @@ type CalendarUpdateCmd struct {
 	GuestsCanInviteOthers *bool    `name:"guests-can-invite" help:"Allow guests to invite others"`
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
+	WithMeet              bool     `name:"with-meet" help:"Create a Google Meet video conference for this event"`
+	RegenerateMeet        bool     `name:"regenerate-meet" help:"Replace the event's Google Meet video conference"`
 	Scope                 string   `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime     string   `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
@@ -234,6 +254,7 @@ type CalendarUpdateCmd struct {
 	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
 	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
+	resolvedPlace         *calendarPlace
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -261,6 +282,12 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	// Cannot use both --attendees and --add-attendee at the same time.
 	if flagProvided(kctx, "attendees") && flagProvided(kctx, "add-attendee") {
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
+	}
+	if flagProvided(kctx, "with-meet") && flagProvided(kctx, "regenerate-meet") {
+		return usage("use only one of --with-meet or --regenerate-meet")
+	}
+	if placeErr := c.resolvePlace(ctx, kctx); placeErr != nil {
+		return placeErr
 	}
 
 	sendUpdates, err := validateSendUpdates(c.SendUpdates)
@@ -292,6 +319,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		"add_attendee":         strings.TrimSpace(c.AddAttendee),
 		"patch":                patch,
 		"wants_add_attendee":   wantsAddAttendee,
+		"conference_version_1": patch.ConferenceData != nil,
 		"supports_attachments": len(patch.Attachments) > 0,
 	}); dryRunErr != nil {
 		return dryRunErr
@@ -318,9 +346,36 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
+	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") && patchOnlyConferenceData(patch) {
+		resolution, resolveErr := resolveRecurringScopeResolution(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, resolution.TargetEventID).Context(ctx).Do()
+		if getErr != nil {
+			return fmt.Errorf("failed to fetch current event for conference data: %w", getErr)
+		}
+		if eventHasConferenceLink(existing) {
+			return mutation.writeEvent(ctx, existing)
+		}
+	}
+
 	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime, patch)
 	if err != nil {
 		return err
+	}
+	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") {
+		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, targetEventID).Context(ctx).Do()
+		if getErr != nil {
+			return fmt.Errorf("failed to fetch current event for conference data: %w", getErr)
+		}
+		if eventHasConferenceLink(existing) {
+			onlyConferenceData := patchOnlyConferenceData(patch)
+			patch.ConferenceData = nil
+			if onlyConferenceData {
+				return mutation.writeEvent(ctx, existing)
+			}
+		}
 	}
 	if recurrenceProvided {
 		if enrichErr := ensureRecurringPatchDateTimes(ctx, mutation.svc, mutation.calendarID, targetEventID, patch); enrichErr != nil {
@@ -389,7 +444,15 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 		changed = true
 	}
 
+	if c.applyConferenceData(kctx, patch) {
+		changed = true
+	}
+
 	if c.applyExtendedProperties(kctx, patch) {
+		changed = true
+	}
+	if c.resolvedPlace != nil {
+		applyCalendarPlaceProperties(patch, c.resolvedPlace)
 		changed = true
 	}
 
@@ -429,6 +492,10 @@ func (c *CalendarUpdateCmd) applyTextFields(kctx *kong.Context, patch *calendar.
 		patch.Location = strings.TrimSpace(c.Location)
 		changed = true
 	}
+	if c.resolvedPlace != nil {
+		patch.Location = formatCalendarPlaceLocation(c.resolvedPlace)
+		changed = true
+	}
 	return changed
 }
 
@@ -444,12 +511,21 @@ func resolveUpdateAllDay(value string, allDay bool, eventType string) (bool, err
 
 func (c *CalendarUpdateCmd) applyTimeFields(kctx *kong.Context, patch *calendar.Event, eventType string) (bool, error) {
 	changed := false
+	if flagProvided(kctx, "start-timezone") && !flagProvided(kctx, "from") {
+		return false, usage("--start-timezone requires --from")
+	}
+	if flagProvided(kctx, "end-timezone") && !flagProvided(kctx, "to") {
+		return false, usage("--end-timezone requires --to")
+	}
 	if flagProvided(kctx, "from") {
 		allDay, err := resolveUpdateAllDay(c.From, c.AllDay, eventType)
 		if err != nil {
 			return false, err
 		}
-		patch.Start = buildEventDateTime(c.From, allDay)
+		patch.Start, err = buildEventDateTimeWithTimezone(c.From, allDay, c.StartTimezone, "--start-timezone")
+		if err != nil {
+			return false, err
+		}
 		changed = true
 	}
 	if flagProvided(kctx, "to") {
@@ -457,7 +533,10 @@ func (c *CalendarUpdateCmd) applyTimeFields(kctx *kong.Context, patch *calendar.
 		if err != nil {
 			return false, err
 		}
-		patch.End = buildEventDateTime(c.To, allDay)
+		patch.End, err = buildEventDateTimeWithTimezone(c.To, allDay, c.EndTimezone, "--end-timezone")
+		if err != nil {
+			return false, err
+		}
 		changed = true
 	}
 	return changed, nil
@@ -632,6 +711,41 @@ func (c *CalendarUpdateCmd) applyGuestOptions(kctx *kong.Context, patch *calenda
 		changed = true
 	}
 	return changed
+}
+
+func (c *CalendarUpdateCmd) applyConferenceData(kctx *kong.Context, patch *calendar.Event) bool {
+	if !flagProvided(kctx, "with-meet") && !flagProvided(kctx, "regenerate-meet") {
+		return false
+	}
+	patch.ConferenceData = buildConferenceData(true)
+	return true
+}
+
+func eventHasConferenceLink(event *calendar.Event) bool {
+	if event == nil {
+		return false
+	}
+	if strings.TrimSpace(event.HangoutLink) != "" {
+		return true
+	}
+	if event.ConferenceData == nil {
+		return false
+	}
+	for _, ep := range event.ConferenceData.EntryPoints {
+		if ep != nil && strings.TrimSpace(ep.Uri) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func patchOnlyConferenceData(event *calendar.Event) bool {
+	if event == nil || event.ConferenceData == nil {
+		return false
+	}
+	clone := *event
+	clone.ConferenceData = nil
+	return reflect.DeepEqual(clone, calendar.Event{})
 }
 
 func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event) bool {
