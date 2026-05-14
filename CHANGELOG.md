@@ -20,6 +20,7 @@
 - CLI: make mutating dry-runs for contacts, Docs, Drive, Meet, and Slides stop before auth/API calls while still validating local inputs; harden live smoke tests for self-sharing, disabled Meet, Gmail filter labels, and forced batch deletes.
 - CLI: make dry-runs for Gmail label edits, Sheets table deletes, Sheets banding/conditional clears, and Forms deletes stop before auth/API calls, and make Forms dry-runs validate choice, scale, quiz, and empty update inputs locally.
 - CLI: make dry-runs for Calendar secondary calendars, Forms create/publish/watch/move, Gmail label delete, Sheets table append/clear, Sheets named-range edits, Apps Script create, and Slides template creation stay offline before auth/API calls.
+- CLI: make dry-runs for Admin group/user/org-unit edits, Contacts delete, Docs tab export, Drive tab download/share/unshare, and Gmail watch renew stay offline before auth/API calls; redact Admin user create passwords in dry-run output.
 - Auth: keep fresh OAuth saves working even when old file-keyring token entries are unreadable, and clarify that `--services all` means all user OAuth services while Workspace-only services use service accounts.
 - Gmail: reject off-palette `gmail labels style` colors locally instead of forwarding an opaque Gmail API error.
 - Drive: make `drive share --dry-run` stop before permission creation for user and domain shares, including `--notify`.

@@ -43,10 +43,6 @@ type driveShareTarget struct {
 
 func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	fileID := strings.TrimSpace(c.FileID)
 	if fileID == "" {
 		return usage("empty fileId")
@@ -57,16 +53,6 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	role, err := normalizeDrivePermissionRole(c.Role)
-	if err != nil {
-		return err
-	}
-	if target.to == driveShareToAnyone {
-		if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("share drive file %s with anyone (public)", fileID)); confirmErr != nil {
-			return confirmErr
-		}
-	}
-
-	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -84,6 +70,22 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"sendNotificationEmail": c.Notify,
 	}); dryRunErr != nil {
 		return dryRunErr
+	}
+
+	if target.to == driveShareToAnyone {
+		if confirmErr := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("share drive file %s with anyone (public)", fileID)); confirmErr != nil {
+			return confirmErr
+		}
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newDriveService(ctx, account)
+	if err != nil {
+		return err
 	}
 
 	created, err := svc.Permissions.Create(fileID, perm).
@@ -202,10 +204,6 @@ type DriveUnshareCmd struct {
 
 func (c *DriveUnshareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	fileID := strings.TrimSpace(c.FileID)
 	permissionID := strings.TrimSpace(c.PermissionID)
 	if fileID == "" {
@@ -215,8 +213,16 @@ func (c *DriveUnshareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty permissionId")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove permission %s from drive file %s", permissionID, fileID)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "drive.unshare", map[string]any{
+		"fileId":       fileID,
+		"permissionId": permissionID,
+	}, fmt.Sprintf("remove permission %s from drive file %s", permissionID, fileID)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)

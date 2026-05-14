@@ -129,6 +129,18 @@ type GmailWatchRenewCmd struct {
 }
 
 func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ttl, err := parseDurationSeconds(c.TTL)
+	if err != nil {
+		return err
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.renew", map[string]any{
+		"ttl_raw": strings.TrimSpace(c.TTL),
+		"ttl":     ttl.String(),
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -140,21 +152,6 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 	state := store.Get()
 	if strings.TrimSpace(state.Topic) == "" {
 		return errors.New("stored watch state missing topic")
-	}
-
-	ttl, err := parseDurationSeconds(c.TTL)
-	if err != nil {
-		return err
-	}
-
-	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.renew", map[string]any{
-		"topic":   strings.TrimSpace(state.Topic),
-		"labels":  state.Labels,
-		"ttl_raw": strings.TrimSpace(c.TTL),
-		"ttl":     ttl.String(),
-		"hook":    state.Hook,
-	}); dryRunErr != nil {
-		return dryRunErr
 	}
 
 	svc, err := newGmailService(ctx, account)

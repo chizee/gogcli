@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -23,9 +24,19 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "contacts.update",
 		},
 		{
+			name: "contacts delete",
+			args: []string{"contacts", "delete", "people/123"},
+			op:   "contacts.delete",
+		},
+		{
 			name: "docs insert",
 			args: []string{"docs", "insert", "doc123", "hello"},
 			op:   "docs.insert",
+		},
+		{
+			name: "docs export tab",
+			args: []string{"docs", "export", "doc123", "--tab", "Tab 1", "--format", "pdf", "--out", "/tmp/gog-dryrun-tab.pdf"},
+			op:   "docs.tab-export",
 		},
 		{
 			name: "drive move",
@@ -36,6 +47,66 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			name: "drive rename",
 			args: []string{"drive", "rename", "file123", "New"},
 			op:   "drive.rename",
+		},
+		{
+			name: "drive share user",
+			args: []string{"drive", "share", "file123", "--to", "user", "--email", "user@example.com"},
+			op:   "drive.share",
+		},
+		{
+			name: "drive share anyone",
+			args: []string{"drive", "share", "file123", "--to", "anyone"},
+			op:   "drive.share",
+		},
+		{
+			name: "drive unshare",
+			args: []string{"drive", "unshare", "file123", "perm123"},
+			op:   "drive.unshare",
+		},
+		{
+			name: "drive download tab",
+			args: []string{"drive", "download", "doc123", "--tab", "Tab 1", "--format", "pdf", "--out", "/tmp/gog-dryrun-drive-tab.pdf"},
+			op:   "docs.tab-export",
+		},
+		{
+			name: "admin groups members add",
+			args: []string{"admin", "groups", "members", "add", "group@example.com", "user@example.com"},
+			op:   "admin.groups.members.add",
+		},
+		{
+			name: "admin groups members remove",
+			args: []string{"admin", "groups", "members", "remove", "group@example.com", "user@example.com"},
+			op:   "admin.groups.members.remove",
+		},
+		{
+			name: "admin orgunits create",
+			args: []string{"admin", "orgunits", "create", "Engineering", "--parent", "/"},
+			op:   "admin.orgunits.create",
+		},
+		{
+			name: "admin orgunits update",
+			args: []string{"admin", "orgunits", "update", "/Engineering", "--name", "Eng"},
+			op:   "admin.orgunits.update",
+		},
+		{
+			name: "admin orgunits delete",
+			args: []string{"admin", "orgunits", "delete", "/Engineering"},
+			op:   "admin.orgunits.delete",
+		},
+		{
+			name: "admin users create",
+			args: []string{"admin", "users", "create", "user@example.com", "--given", "Test", "--family", "User"},
+			op:   "admin.users.create",
+		},
+		{
+			name: "admin users delete",
+			args: []string{"admin", "users", "delete", "user@example.com"},
+			op:   "admin.users.delete",
+		},
+		{
+			name: "admin users suspend",
+			args: []string{"admin", "users", "suspend", "user@example.com"},
+			op:   "admin.users.suspend",
 		},
 		{
 			name: "calendar create-calendar",
@@ -86,6 +157,11 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			name: "gmail label delete",
 			args: []string{"gmail", "labels", "delete", "Label_1"},
 			op:   "gmail.labels.delete",
+		},
+		{
+			name: "gmail watch renew",
+			args: []string{"gmail", "watch", "renew", "--ttl", "1h"},
+			op:   "gmail.watch.renew",
 		},
 		{
 			name: "meet update",
@@ -190,6 +266,31 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 				t.Fatalf("unexpected dry-run output: %#v", payload)
 			}
 		})
+	}
+}
+
+func TestDryRunE2E_AdminUserCreateDoesNotEmitPassword(t *testing.T) {
+	args := []string{
+		"--json", "--dry-run", "--no-input", "--access-token", "invalid-token",
+		"admin", "users", "create", "user@example.com",
+		"--given", "Test", "--family", "User", "--password", "Secret123!",
+	}
+	var stderr string
+	out := captureStdout(t, func() {
+		stderr = captureStderr(t, func() {
+			if err := Execute(args); err != nil && ExitCode(err) != 0 {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if stderr != "" {
+		t.Fatalf("dry-run touched auth/API stderr: %q", stderr)
+	}
+	if strings.Contains(out, "Secret123!") {
+		t.Fatalf("dry-run output leaked password: %s", out)
+	}
+	if !strings.Contains(out, `"password": "provided"`) {
+		t.Fatalf("dry-run output missing redacted password state: %s", out)
 	}
 }
 

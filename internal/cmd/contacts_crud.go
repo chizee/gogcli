@@ -761,17 +761,20 @@ func parseYYYYMMDD(s string) (*people.Date, error) {
 
 func (c *ContactsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	resourceName := strings.TrimSpace(c.ResourceName)
 	if !strings.HasPrefix(resourceName, "people/") {
 		return usage("resourceName must start with people/")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete contact %s", resourceName)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "contacts.delete", map[string]any{
+		"resourceName": resourceName,
+	}, fmt.Sprintf("delete contact %s", resourceName)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newPeopleContactsService(ctx, account)

@@ -155,11 +155,6 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 		return usage("empty docId")
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	format := p.Format
 	if format == "" || format == formatAuto {
 		format = "pdf"
@@ -186,6 +181,11 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 		"out":    outPath,
 	}); dryErr != nil {
 		return dryErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	docsSvc, err := newDocsService(ctx, account)

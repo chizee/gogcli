@@ -24,11 +24,6 @@ type DriveDownloadCmd struct {
 }
 
 func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	if fileID == "" {
 		return usage("empty fileId")
@@ -51,6 +46,11 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	if formatErr := validateDriveDownloadFormatFlag(c.Format); formatErr != nil {
 		return formatErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)

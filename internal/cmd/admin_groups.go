@@ -230,11 +230,6 @@ type AdminGroupsMembersAddCmd struct {
 
 func (c *AdminGroupsMembersAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	groupEmail := strings.TrimSpace(c.GroupEmail)
 	memberEmail := strings.TrimSpace(c.MemberEmail)
 	if groupEmail == "" || memberEmail == "" {
@@ -251,8 +246,16 @@ func (c *AdminGroupsMembersAddCmd) Run(ctx context.Context, flags *RootFlags) er
 		Role:  role,
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, fmt.Sprintf("add %s to %s as %s", memberEmail, groupEmail, role), member); dryRunErr != nil {
+	if dryRunErr := dryRunExit(ctx, flags, "admin.groups.members.add", map[string]any{
+		"group":  groupEmail,
+		"member": member,
+	}); dryRunErr != nil {
 		return dryRunErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newAdminDirectoryService(ctx, account)
@@ -282,19 +285,22 @@ type AdminGroupsMembersRemoveCmd struct {
 }
 
 func (c *AdminGroupsMembersRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	groupEmail := strings.TrimSpace(c.GroupEmail)
 	memberEmail := strings.TrimSpace(c.MemberEmail)
 	if groupEmail == "" || memberEmail == "" {
 		return usage("group email and member email required")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s from %s", memberEmail, groupEmail)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "admin.groups.members.remove", map[string]any{
+		"group":  groupEmail,
+		"member": memberEmail,
+	}, fmt.Sprintf("remove %s from %s", memberEmail, groupEmail)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newAdminDirectoryService(ctx, account)

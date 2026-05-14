@@ -128,11 +128,6 @@ type AdminOrgunitsCreateCmd struct {
 
 func (c *AdminOrgunitsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	name := strings.TrimSpace(c.Name)
 	if name == "" {
 		return usage("org unit name required")
@@ -150,6 +145,11 @@ func (c *AdminOrgunitsCreateCmd) Run(ctx context.Context, flags *RootFlags) erro
 
 	if dryRunErr := dryRunExit(ctx, flags, "admin.orgunits.create", orgUnit); dryRunErr != nil {
 		return dryRunErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newAdminOrgUnitDirectoryService(ctx, account)
@@ -178,11 +178,6 @@ type AdminOrgunitsUpdateCmd struct {
 
 func (c *AdminOrgunitsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	path := strings.TrimSpace(c.Path)
 	if path == "" {
 		return usage("org unit path required")
@@ -213,6 +208,11 @@ func (c *AdminOrgunitsUpdateCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return dryRunErr
 	}
 
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	path = normalizeAdminOrgUnitPath(path)
 	if path == "" {
 		return usage("org unit path required")
@@ -240,18 +240,20 @@ type AdminOrgunitsDeleteCmd struct {
 }
 
 func (c *AdminOrgunitsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	path := strings.TrimSpace(c.Path)
 	if path == "" {
 		return usage("org unit path required")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete org unit %s", path)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "admin.orgunits.delete", map[string]any{
+		"path": path,
+	}, fmt.Sprintf("delete org unit %s", path)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	path = normalizeAdminOrgUnitPath(path)

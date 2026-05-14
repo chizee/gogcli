@@ -238,11 +238,6 @@ type AdminUsersCreateCmd struct {
 }
 
 func (c *AdminUsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	email := strings.TrimSpace(c.Email)
 	givenName := strings.TrimSpace(c.GivenName)
 	familyName := strings.TrimSpace(c.FamilyName)
@@ -266,6 +261,45 @@ func (c *AdminUsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if hashFunction != "" && password == "" {
 		return usage("--password required when --hash-function is set")
 	}
+
+	dryRunUser := &admin.User{
+		PrimaryEmail: email,
+		Name: &admin.UserName{
+			GivenName:  givenName,
+			FamilyName: familyName,
+		},
+		ChangePasswordAtNextLogin: c.ChangePwd || password == "",
+		Suspended:                 c.Suspended,
+		Archived:                  c.Archived,
+	}
+	if c.OrgUnit != "" {
+		dryRunUser.OrgUnitPath = strings.TrimSpace(c.OrgUnit)
+	}
+	if c.RecoveryEmail != "" {
+		dryRunUser.RecoveryEmail = strings.TrimSpace(c.RecoveryEmail)
+	}
+	if c.RecoveryPhone != "" {
+		dryRunUser.RecoveryPhone = strings.TrimSpace(c.RecoveryPhone)
+	}
+	if hashFunction != "" {
+		dryRunUser.HashFunction = hashFunction
+	}
+	passwordState := "provided"
+	if password == "" {
+		passwordState = "generated"
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "admin.users.create", map[string]any{
+		"user":     dryRunUser,
+		"password": passwordState,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	generatedPassword := false
 	if password == "" {
 		password, err = generateAdminUserPassword(16)
@@ -297,10 +331,6 @@ func (c *AdminUsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if hashFunction != "" {
 		user.HashFunction = hashFunction
-	}
-
-	if dryRunErr := dryRunExit(ctx, flags, "create user", user); dryRunErr != nil {
-		return dryRunErr
 	}
 
 	svc, err := newAdminDirectoryService(ctx, account)
@@ -376,18 +406,20 @@ type AdminUsersDeleteCmd struct {
 }
 
 func (c *AdminUsersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	userEmail := strings.TrimSpace(c.UserEmail)
 	if userEmail == "" {
 		return usage("user email required")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete user %s", userEmail)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "admin.users.delete", map[string]any{
+		"email": userEmail,
+	}, fmt.Sprintf("delete user %s", userEmail)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newAdminDirectoryService(ctx, account)
@@ -416,18 +448,21 @@ type AdminUsersSuspendCmd struct {
 }
 
 func (c *AdminUsersSuspendCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAdminAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	userEmail := strings.TrimSpace(c.UserEmail)
 	if userEmail == "" {
 		return usage("user email required")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("suspend user %s", userEmail)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "admin.users.suspend", map[string]any{
+		"email":     userEmail,
+		"suspended": true,
+	}, fmt.Sprintf("suspend user %s", userEmail)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newAdminDirectoryService(ctx, account)
