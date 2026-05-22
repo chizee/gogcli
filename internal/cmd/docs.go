@@ -42,6 +42,7 @@ type DocsCmd struct {
 	Clear           DocsClearCmd           `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
 	Structure       DocsStructureCmd       `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
 	Raw             DocsRawCmd             `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
+	PageLayout      DocsPageLayoutCmd      `cmd:"" name:"page-layout" aliases:"set-page-layout,page-setup" help:"Set page layout (pageless|pages) on an existing Google Doc"`
 }
 
 type DocsTabsCmd struct {
