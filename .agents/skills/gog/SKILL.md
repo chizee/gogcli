@@ -63,14 +63,24 @@ human normally completes browser consent:
 
 ```bash
 gog auth credentials list
-gog auth add user@example.com --services gmail,calendar,drive --readonly
-gog auth add user@example.com --services docs,sheets,slides
+gog auth add user@example.com --services all-user --force-consent
 gog auth remove user@example.com
 ```
 
-Use narrow services and `--readonly` when the task only reads. Service accounts
-are Workspace-only and mainly fit Admin, Groups, Keep, and domain-wide
-delegation flows; they do not solve consumer `@gmail.com` OAuth.
+Default for existing human/user OAuth reauth: preserve broad service access.
+Before reauth, run `gog auth list --check --json --no-input` and inspect the
+account's existing `services`. When replacing an expired or revoked token, do
+not silently reduce scope; prefer `--services all-user --force-consent` unless
+the user explicitly asks for narrower scopes.
+
+Use narrow services only for throwaway/test accounts, service-specific bot
+accounts, explicit user requests, or scoped security experiments. Safety should
+normally be enforced at command time with `--enable-commands`,
+`--disable-commands`, `--gmail-no-send`, dry-runs, and account selection, not by
+under-scoping durable user auth.
+
+Service accounts are Workspace-only and mainly fit Admin, Groups, Keep, and
+domain-wide delegation flows; they do not solve consumer `@gmail.com` OAuth.
 
 For OpenClaw/systemd setups, run the diagnostic through the actual agent
 entrypoint after restarting the service:
@@ -86,7 +96,7 @@ the shell, fix the service or agent environment before reauthenticating.
 Remote Mac OAuth pattern:
 
 1. Start the OAuth flow in remote tmux on the target Mac, for example
-   `gog auth add user@example.com --services gmail --force-consent --timeout 15m`.
+   `gog auth add user@example.com --services all-user --force-consent --timeout 15m`.
 2. Open the printed OAuth URL on that same Mac's Chrome with `open -a "Google Chrome"`.
 3. Drive the Google page on the target Mac with AppleScript/DOM clicks; keep the
    browser on the target host unless the user explicitly asks for a tunnel/local
