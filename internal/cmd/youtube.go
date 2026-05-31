@@ -77,7 +77,7 @@ func (c *YouTubeActivitiesListCmd) Run(ctx context.Context, flags *RootFlags) er
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"items":         resp.Items,
+			"items":         youtubeItemsOrEmpty(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -157,7 +157,7 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"items":         resp.Items,
+			"items":         youtubeItemsOrEmpty(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -240,7 +240,7 @@ func (c *YouTubePlaylistsListCmd) Run(ctx context.Context, flags *RootFlags) err
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"items":         resp.Items,
+			"items":         youtubeItemsOrEmpty(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -313,7 +313,7 @@ func (c *YouTubeCommentsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"items":         resp.Items,
+			"items":         youtubeItemsOrEmpty(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -400,7 +400,7 @@ func (c *YouTubeChannelsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"items":         resp.Items,
+			"items":         youtubeItemsOrEmpty(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -484,7 +484,7 @@ func (c *YouTubeSearchListCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"items":         resp.Items,
+			"items":         youtubeItemsOrEmpty(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -530,6 +530,13 @@ func validateYouTubeMax(limit int64) error {
 		return usage("--max must be between 1 and 50")
 	}
 	return nil
+}
+
+func youtubeItemsOrEmpty[T any](items []*T) []*T {
+	if items == nil {
+		return []*T{}
+	}
+	return items
 }
 
 func getYouTubeReadService(ctx context.Context, flags *RootFlags) (*youtube.Service, error) {

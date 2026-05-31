@@ -106,6 +106,48 @@ func TestYouTubeMineUsesOAuthService(t *testing.T) {
 	}
 }
 
+func TestYouTubeChannelsMineJSONEmptyItems(t *testing.T) {
+	origNew := newYouTubeForAccount
+	t.Cleanup(func() { newYouTubeForAccount = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/channels" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("mine"); got != "true" {
+			t.Fatalf("mine = %q", got)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	newYouTubeForAccount = func(context.Context, string) (*youtube.Service, error) {
+		return svc, nil
+	}
+
+	var err error
+	stdout := captureStdout(t, func() {
+		err = runKong(t, &YouTubeChannelsListCmd{}, []string{"--mine", "--max", "1"}, newCmdJSONContext(t), &RootFlags{Account: "me@example.com", JSON: true})
+	})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	var got struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("json output %q: %v", stdout, err)
+	}
+	if got.Items == nil {
+		t.Fatalf("items is nil in output: %s", stdout)
+	}
+	if len(got.Items) != 0 {
+		t.Fatalf("items len = %d, output: %s", len(got.Items), stdout)
+	}
+}
+
 func TestYouTubeSearchWithAPIKey(t *testing.T) {
 	t.Setenv("GOG_ACCOUNT", "")
 	t.Setenv("GOG_YOUTUBE_API_KEY", "test-key")
