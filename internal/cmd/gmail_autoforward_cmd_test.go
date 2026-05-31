@@ -106,8 +106,21 @@ func TestGmailAutoForwardUpdateCmd_JSONAndValidation(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 
 	cmd := &GmailAutoForwardUpdateCmd{}
-	if err := runKong(t, cmd, []string{"--disposition", "nope"}, context.Background(), flags); err == nil {
+	err = runKong(t, cmd, []string{"--disposition", "nope"}, context.Background(), flags)
+	if err == nil {
 		t.Fatalf("expected validation error")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+
+	cmdConflict := &GmailAutoForwardUpdateCmd{}
+	err = runKong(t, cmdConflict, []string{"--enable", "--disable"}, context.Background(), flags)
+	if err == nil {
+		t.Fatalf("expected conflict error")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
 	}
 
 	jsonOut := captureStdout(t, func() {

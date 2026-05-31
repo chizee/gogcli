@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"os"
 
 	"github.com/alecthomas/kong"
@@ -60,7 +59,7 @@ type GmailAutoForwardUpdateCmd struct {
 func (c *GmailAutoForwardUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	if c.Enable && c.Disable {
-		return errors.New("cannot specify both --enable and --disable")
+		return usage("cannot specify both --enable and --disable")
 	}
 
 	updates := map[string]any{}
@@ -82,7 +81,7 @@ func (c *GmailAutoForwardUpdateCmd) Run(ctx context.Context, kctx *kong.Context,
 			"markRead":     true,
 		}
 		if !validDispositions[c.Disposition] {
-			return errors.New("invalid disposition value; must be one of: leaveInInbox, archive, trash, markRead")
+			return usage("invalid disposition value; must be one of: leaveInInbox, archive, trash, markRead")
 		}
 		updates["disposition"] = c.Disposition
 	}

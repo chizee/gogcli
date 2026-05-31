@@ -31,6 +31,7 @@
 - CLI: report public command paths in dry-run op fields for service-account, Calendar, Forms, Meet, and Sheets named-range commands.
 - CLI: preserve command-local `--fields` API masks for Drive, Drive Labels, Sites, and Calendar Events instead of rewriting them to JSON `--select`.
 - Gmail: return empty JSON arrays, not null, for empty forwarding address, delegate, and send-as settings lists.
+- Gmail: return usage exit code 2 for invalid vacation responder and auto-forwarding settings flags instead of reporting them as generic runtime failures.
 - Gmail: make `gmail track setup`, `gmail track status`, and `gmail track key rotate` honor `--json` on success without printing generated tracking secrets to stderr.
 - Gmail: return an empty JSON array, not null, for empty Gmail filter lists and JSON filter exports.
 - Gmail: return usage exit code 2 for invalid `gmail history --since` cursors instead of reporting them as generic runtime failures.

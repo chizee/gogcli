@@ -248,7 +248,32 @@ func TestGmailSettings_JSONEmptyListsUseArrays(t *testing.T) {
 
 func TestGmailVacationUpdate_EnableDisableConflict(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
-	if err := runKong(t, &GmailVacationUpdateCmd{}, []string{"--enable", "--disable"}, context.Background(), flags); err == nil {
+	err := runKong(t, &GmailVacationUpdateCmd{}, []string{"--enable", "--disable"}, context.Background(), flags)
+	if err == nil {
 		t.Fatalf("expected conflict error")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+}
+
+func TestGmailVacationUpdate_InvalidTimesAreUsageErrors(t *testing.T) {
+	flags := &RootFlags{Account: "a@b.com", DryRun: true}
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{name: "start", args: []string{"--start", "nope"}},
+		{name: "end", args: []string{"--end", "nope"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runKong(t, &GmailVacationUpdateCmd{}, tt.args, context.Background(), flags)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if got := ExitCode(err); got != 2 {
+				t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+			}
+		})
 	}
 }

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"os"
 	"time"
 
@@ -70,7 +69,7 @@ type GmailVacationUpdateCmd struct {
 func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	if c.Enable && c.Disable {
-		return errors.New("cannot specify both --enable and --disable")
+		return usage("cannot specify both --enable and --disable")
 	}
 
 	var err error
@@ -92,7 +91,7 @@ func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		var t int64
 		t, err = parseRFC3339ToMillis(c.Start)
 		if err != nil {
-			return err
+			return usagef("invalid --start %q (expected RFC3339)", c.Start)
 		}
 		updates["start_time"] = t
 	}
@@ -100,7 +99,7 @@ func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		var t int64
 		t, err = parseRFC3339ToMillis(c.End)
 		if err != nil {
-			return err
+			return usagef("invalid --end %q (expected RFC3339)", c.End)
 		}
 		updates["end_time"] = t
 	}
@@ -163,7 +162,7 @@ func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		var t int64
 		t, err = parseRFC3339ToMillis(c.Start)
 		if err != nil {
-			return err
+			return usagef("invalid --start %q (expected RFC3339)", c.Start)
 		}
 		vacation.StartTime = t
 	}
@@ -171,7 +170,7 @@ func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		var t int64
 		t, err = parseRFC3339ToMillis(c.End)
 		if err != nil {
-			return err
+			return usagef("invalid --end %q (expected RFC3339)", c.End)
 		}
 		vacation.EndTime = t
 	}
