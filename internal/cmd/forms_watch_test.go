@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	formsapi "google.golang.org/api/forms/v1"
+
+	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 func TestFormsWatchCommands(t *testing.T) {
@@ -88,5 +90,49 @@ func TestFormsWatchCommands(t *testing.T) {
 	}
 	if deleteCalls != 1 {
 		t.Fatalf("expected one delete call, got %d", deleteCalls)
+	}
+}
+
+func TestFormsWatchList_JSONEmptyArray(t *testing.T) {
+	origNew := newFormsService
+	t.Cleanup(func() { newFormsService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/v1/forms/form1/watches") {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	newFormsService = func(ctx context.Context, account string) (*formsapi.Service, error) {
+		return newFormsTestService(t, ctx, srv), nil
+	}
+
+	ctx := outfmt.WithMode(newQuietUIContext(t), outfmt.Mode{JSON: true})
+	flags := &RootFlags{Account: "a@b.com", JSON: true}
+	out := captureStdout(t, func() {
+		if err := runKong(t, &FormsWatchListCmd{}, []string{"form1"}, ctx, flags); err != nil {
+			t.Fatalf("list watches: %v", err)
+		}
+	})
+
+	var parsed struct {
+		FormID  string            `json:"form_id"`
+		Watches []*formsapi.Watch `json:"watches"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal output: %v\n%s", err, out)
+	}
+	if parsed.FormID != "form1" {
+		t.Fatalf("form_id = %q", parsed.FormID)
+	}
+	if parsed.Watches == nil {
+		t.Fatalf("watches must be an empty array, got nil: %s", out)
+	}
+	if len(parsed.Watches) != 0 {
+		t.Fatalf("watches len = %d, want 0", len(parsed.Watches))
 	}
 }

@@ -116,9 +116,13 @@ func (c *FormsWatchListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
+		watches := resp.Watches
+		if watches == nil {
+			watches = []*formsapi.Watch{}
+		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"form_id": formID,
-			"watches": resp.Watches,
+			"watches": watches,
 		})
 	}
 
