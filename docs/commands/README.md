@@ -54,7 +54,7 @@ Generated pages: 583.
 
 ## All Commands
 
-- [gog](gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Analytics/Search Console/Ads/Groups/Admin/Keep/YouTube/Maps/Photos
+- [gog](gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Analytics/Search Console/Groups/Admin/Keep/YouTube/Maps/Photos
   - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
     - [gog admin groups](gog-admin-groups.md) - Manage Workspace groups
       - [gog admin groups list](gog-admin-groups-list.md) - List groups in a domain
