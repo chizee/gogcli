@@ -556,6 +556,28 @@ func TestSlidesReplaceSlide_NoImage(t *testing.T) {
 	}
 }
 
+func TestSlidesReplaceSlide_UnsupportedFormat(t *testing.T) {
+	imgPath := newTestImage(t, "replacement.bmp")
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesReplaceSlideCmd{
+		PresentationID: "pres1",
+		SlideID:        "slide_1",
+		Image:          imgPath,
+	}
+	err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"})
+	if err == nil || !strings.Contains(err.Error(), "unsupported image format") {
+		t.Fatalf("expected unsupported format error, got: %v", err)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+}
+
 func TestSlidesReplaceSlide_ClearNotesWithEmptyFlag(t *testing.T) {
 	origSlides := newSlidesService
 	origDrive := newDriveService

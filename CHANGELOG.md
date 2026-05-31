@@ -18,6 +18,7 @@
 - Calendar: make `calendar conflicts` check all calendars by default and reject explicit one-calendar selections instead of silently reporting no cross-calendar conflicts.
 - Calendar: return an empty JSON array, not null, for `calendar conflicts --json` when no conflicts are found.
 - Calendar: return usage exit code 2 for invalid focus-time and working-location flag values instead of reporting them as generic runtime failures.
+- Calendar: return usage exit code 2 for invalid `calendar respond --status` values instead of reporting them as generic runtime failures.
 - Calendar: reject all-day or date-only Out of Office event requests locally because Google Calendar only accepts timed OOO events on enterprise calendars.
 - Contacts: warm the People API contact-search cache, including Google's documented propagation wait, before contact and other-contact searches plus Gmail `--from-contact` resolution so fresh contact changes are visible.
 - Contacts: use an other-contact-safe read mask for `contacts other list` and `contacts other search` so Google does not reject the request.
@@ -30,6 +31,7 @@
 - Docs/Sheets/Slides: report service-specific dry-run ops for `copy` commands instead of `drive.copy`.
 - CLI: report public command paths in dry-run op fields for service-account, Calendar, Forms, Meet, and Sheets named-range commands.
 - CLI: preserve command-local `--fields` API masks for Drive, Drive Labels, Sites, and Calendar Events instead of rewriting them to JSON `--select`.
+- Drive: return usage exit code 2 when `drive download --tab` rejects unsupported export formats.
 - Gmail: return empty JSON arrays, not null, for empty forwarding address, delegate, and send-as settings lists.
 - Gmail: return usage exit code 2 for invalid vacation responder and auto-forwarding settings flags instead of reporting them as generic runtime failures.
 - Gmail: return usage exit code 2 for invalid message formats and batch-modify label flags instead of reporting them as generic runtime failures.
@@ -44,8 +46,10 @@
 - Sheets: infer `sheets format --format-fields` from `--format-json` when callers do not need a custom mask.
 - Sheets: return usage exit code 2 for missing or invalid `sheets update` and `sheets append` values instead of reporting them as generic runtime failures.
 - Slides: make local-image insertion/replacement use stable Drive download URLs and retry while public sharing propagates.
+- Slides: return usage exit code 2 when `slides add-slide` and `slides replace-slide` reject unsupported image formats.
 - Slides: return empty JSON arrays, not null, for blank slide text and image lists in `slides read-slide`.
 - Slides: avoid invalid `deleteText` requests when updating speaker notes on a blank notes page.
+- Time: return usage exit code 2 for invalid `time now --timezone` values instead of reporting them as generic runtime failures.
 - YouTube: let `activities list --channel-id`, `playlists list --channel-id`, and `channels list --id` honor `--account` OAuth instead of requiring an API key.
 - YouTube: filter `youtube search list --type` output to the requested resource kinds when the API returns mixed results.
 - YouTube: return an empty JSON array, not null, when list responses contain no items.

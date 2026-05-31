@@ -50,7 +50,7 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 	case imageExtGIF:
 		mimeType = imageMimeGIF
 	default:
-		return fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+		return usagef("unsupported image format %q (use PNG, JPG, or GIF)", ext)
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "slides.replace-slide", map[string]any{

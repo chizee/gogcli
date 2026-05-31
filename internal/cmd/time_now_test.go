@@ -43,7 +43,11 @@ func TestTimeNowCmd_JSON(t *testing.T) {
 }
 
 func TestTimeNowCmd_InvalidTimezone(t *testing.T) {
-	if err := runKong(t, &TimeNowCmd{}, []string{"--timezone", "Nope/Zone"}, context.Background(), &RootFlags{}); err == nil {
+	err := runKong(t, &TimeNowCmd{}, []string{"--timezone", "Nope/Zone"}, context.Background(), &RootFlags{})
+	if err == nil {
 		t.Fatalf("expected error")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
 	}
 }

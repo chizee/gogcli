@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
@@ -43,7 +42,7 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 	if !isValid {
-		return fmt.Errorf("invalid status %q; must be one of: %s", status, strings.Join(validStatuses, ", "))
+		return usagef("invalid status %q; must be one of: %s", status, strings.Join(validStatuses, ", "))
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.respond", map[string]any{

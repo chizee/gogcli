@@ -538,4 +538,7 @@ func TestDriveDownloadCmd_TabUnsupportedFormat(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--tab limits export formats") {
 		t.Fatalf("expected --tab format restriction error, got: %v", err)
 	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
 }

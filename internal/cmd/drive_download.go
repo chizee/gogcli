@@ -32,7 +32,7 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if tab := strings.TrimSpace(c.Tab); tab != "" {
 		if f := c.Format; f != "" && f != formatAuto {
 			if _, fmtErr := tabExportFormatParam(f); fmtErr != nil {
-				return fmt.Errorf("--tab limits export formats (pdf|docx|txt|md|html); %q is not supported with --tab", f)
+				return usagef("--tab limits export formats (pdf|docx|txt|md|html); %q is not supported with --tab", f)
 			}
 		}
 		return runDocsTabExport(ctx, flags, tabExportParams{

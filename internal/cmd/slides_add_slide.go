@@ -54,7 +54,7 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	case imageExtGIF:
 		mimeType = imageMimeGIF
 	default:
-		return fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+		return usagef("unsupported image format %q (use PNG, JPG, or GIF)", ext)
 	}
 
 	if err := dryRunExit(ctx, flags, "slides.add-slide", map[string]any{

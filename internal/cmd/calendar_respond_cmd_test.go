@@ -107,3 +107,20 @@ func TestCalendarRespondCmd_Text(t *testing.T) {
 		t.Fatalf("unexpected output: %q", out)
 	}
 }
+
+func TestCalendarRespondCmd_InvalidStatusIsUsageError(t *testing.T) {
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &CalendarRespondCmd{}
+	err := runKong(t, cmd, []string{"primary", "evt1", "--status", "maybe"}, ctx, &RootFlags{Account: "a@b.com"})
+	if err == nil || !strings.Contains(err.Error(), "invalid status") {
+		t.Fatalf("expected invalid status error, got: %v", err)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+}

@@ -845,4 +845,7 @@ func TestSlidesAddSlide_UnsupportedFormat(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unsupported image format") {
 		t.Fatalf("expected unsupported format error, got: %v", err)
 	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
 }
