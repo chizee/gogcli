@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
+	"sort"
 	"strings"
 
 	"google.golang.org/api/sheets/v4"
@@ -43,6 +47,57 @@ func normalizeFormatMask(mask string) (string, []string) {
 	}
 
 	return strings.Join(normalized, ","), formatJSONPaths
+}
+
+func inferFormatMaskFromCellFormatJSON(data []byte) (string, []string, error) {
+	var raw map[string]any
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&raw); err != nil {
+		return "", nil, err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return "", nil, fmt.Errorf("multiple JSON values")
+		}
+		return "", nil, err
+	}
+
+	paths := make([]string, 0)
+	collectJSONLeafPaths("", raw, &paths)
+	sort.Strings(paths)
+	if len(paths) == 0 {
+		return "", nil, usage("format JSON did not contain any format fields")
+	}
+	normalized, formatPaths := normalizeFormatMask(strings.Join(paths, ","))
+	return normalized, formatPaths, nil
+}
+
+func collectJSONLeafPaths(prefix string, value any, paths *[]string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if len(typed) == 0 {
+			if prefix != "" {
+				*paths = append(*paths, prefix)
+			}
+			return
+		}
+		for key, child := range typed {
+			if strings.TrimSpace(key) == "" {
+				continue
+			}
+			next := key
+			if prefix != "" {
+				next = prefix + "." + key
+			}
+			collectJSONLeafPaths(next, child, paths)
+		}
+	default:
+		if prefix != "" {
+			*paths = append(*paths, prefix)
+		}
+	}
 }
 
 func applyForceSendFields(format *sheets.CellFormat, formatPaths []string) error {

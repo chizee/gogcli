@@ -284,9 +284,6 @@ func TestSheetsFormat_ValidationErrors(t *testing.T) {
 	if err := (&SheetsFormatCmd{SpreadsheetID: "s1", Range: "Sheet1!A1"}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected format missing format-json error")
 	}
-	if err := (&SheetsFormatCmd{SpreadsheetID: "s1", Range: "Sheet1!A1", FormatJSON: "{\"textFormat\":{\"bold\":true}}"}).Run(ctx, flags); err == nil {
-		t.Fatalf("expected format missing format-fields error")
-	}
 	if err := (&SheetsFormatCmd{SpreadsheetID: "s1", Range: "Sheet1!A1", FormatJSON: "nope", FormatFields: "userEnteredFormat.textFormat.bold"}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected format invalid json error")
 	}

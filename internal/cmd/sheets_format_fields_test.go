@@ -97,6 +97,26 @@ func TestNormalizeFormatMask_LeavesUnknowns(t *testing.T) {
 	}
 }
 
+func TestInferFormatMaskFromCellFormatJSON(t *testing.T) {
+	normalized, paths, err := inferFormatMaskFromCellFormatJSON([]byte(`{"backgroundColor":{"red":0,"green":0.5,"blue":1},"textFormat":{"bold":false}}`))
+	if err != nil {
+		t.Fatalf("inferFormatMaskFromCellFormatJSON: %v", err)
+	}
+	want := "userEnteredFormat.backgroundColor.blue,userEnteredFormat.backgroundColor.green,userEnteredFormat.backgroundColor.red,userEnteredFormat.textFormat.bold"
+	if normalized != want {
+		t.Fatalf("normalized = %q, want %q", normalized, want)
+	}
+	wantPaths := []string{"backgroundColor.blue", "backgroundColor.green", "backgroundColor.red", "textFormat.bold"}
+	if len(paths) != len(wantPaths) {
+		t.Fatalf("paths = %#v, want %#v", paths, wantPaths)
+	}
+	for i := range wantPaths {
+		if paths[i] != wantPaths[i] {
+			t.Fatalf("paths = %#v, want %#v", paths, wantPaths)
+		}
+	}
+}
+
 func TestHasBoardersTypo(t *testing.T) {
 	if !hasBoardersTypo("boarders.top.style") {
 		t.Fatalf("expected typo detection for boarders")

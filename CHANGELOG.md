@@ -36,6 +36,7 @@
 - People: return an empty JSON array, not null, for `people relations --json` when a profile has no relation entries.
 - CLI: stop advertising `ads` as an API command service in root help; it remains available as an auth-only OAuth scope.
 - Sheets: return an empty JSON array, not null, for blank ranges read with `sheets get --json`.
+- Sheets: infer `sheets format --format-fields` from `--format-json` when callers do not need a custom mask.
 - Slides: return empty JSON arrays, not null, for blank slide text and image lists in `slides read-slide`.
 - Slides: avoid invalid `deleteText` requests when updating speaker notes on a blank notes page.
 - YouTube: let `activities list --channel-id`, `playlists list --channel-id`, and `channels list --id` honor `--account` OAuth instead of requiring an API key.

@@ -7,6 +7,23 @@ read_when:
 `gog sheets format` applies direct cell formatting. Use the advanced formatting
 commands when the spreadsheet should keep applying styling as data changes.
 
+For direct formatting, `--format-json` is enough for ordinary formats; gog
+infers the Sheets field mask from the JSON:
+
+```bash
+gog sheets format "$spreadsheet_id" 'Sheet1!A1:C1' \
+  --format-json '{"textFormat":{"bold":true},"backgroundColor":{"red":0.85,"green":0.9,"blue":1}}'
+```
+
+Use `--format-fields` when you want an explicit field mask or need to force a
+specific nested field:
+
+```bash
+gog sheets format "$spreadsheet_id" 'Sheet1!A1:C1' \
+  --format-json '{"textFormat":{"bold":false}}' \
+  --format-fields textFormat.bold
+```
+
 ## Conditional Formats
 
 Add a rule to a sheet-qualified range:
