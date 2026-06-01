@@ -34,7 +34,7 @@ func (c *CalendarCreateCalendarCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 	if cal.TimeZone != "" {
 		if _, tzErr := loadTimezoneLocation(cal.TimeZone); tzErr != nil {
-			return fmt.Errorf("invalid timezone %q: %w", cal.TimeZone, tzErr)
+			return usagef("invalid timezone %q: %v", cal.TimeZone, tzErr)
 		}
 	}
 

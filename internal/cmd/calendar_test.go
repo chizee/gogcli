@@ -370,10 +370,16 @@ func TestBuildReminders(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for >5 reminders")
 	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
 
 	_, err = buildReminders([]string{"popup:30m", "invalid"})
 	if err == nil {
 		t.Fatalf("expected error for invalid reminder")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
 	}
 }
 

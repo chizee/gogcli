@@ -351,7 +351,7 @@ func driveLabelFieldMods(c *DriveLabelsFileApplyCmd) ([]*drive.LabelFieldModific
 		for _, value := range values {
 			n, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 			if err != nil {
-				return fmt.Errorf("invalid integer label value %q: %w", value, err)
+				return usagef("invalid integer label value %q: %v", value, err)
 			}
 			ints = append(ints, n)
 		}

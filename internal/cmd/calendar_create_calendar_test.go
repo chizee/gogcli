@@ -147,4 +147,7 @@ func TestCalendarCreateCalendarCmd_InvalidTimezone(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `invalid timezone "Nope/Zone"`) {
 		t.Fatalf("expected invalid timezone error, got %v", err)
 	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
 }

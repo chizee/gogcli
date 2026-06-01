@@ -246,7 +246,7 @@ func (c *KeepAttachmentCmd) Run(ctx context.Context, flags *RootFlags, keep *Kee
 
 	name := strings.TrimSpace(c.AttachmentName)
 	if !strings.Contains(name, "/attachments/") {
-		return fmt.Errorf("invalid attachment name format, expected: notes/<noteId>/attachments/<attachmentId>")
+		return usage("invalid attachment name format, expected: notes/<noteId>/attachments/<attachmentId>")
 	}
 
 	outPath := strings.TrimSpace(c.Out)

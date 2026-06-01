@@ -126,6 +126,20 @@ func TestDriveLabelsFileApply_BuildsModifyLabelsRequest(t *testing.T) {
 	}
 }
 
+func TestDriveLabelsFileApply_InvalidIntegerIsUsageError(t *testing.T) {
+	err := (&DriveLabelsFileApplyCmd{
+		FileID:  "file1",
+		LabelID: "label1",
+		Integer: []string{"count=abc"},
+	}).Run(newCmdOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@example.com", DryRun: true})
+	if err == nil || !strings.Contains(err.Error(), "invalid integer label value") {
+		t.Fatalf("expected invalid integer error, got: %v", err)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+}
+
 func TestWrapDriveLabelsErrorValidCustomer(t *testing.T) {
 	err := wrapDriveLabelsError(errors.New("Cannot perform this action without a valid customer"))
 	if err == nil || !strings.Contains(err.Error(), "requires a Google Workspace customer") {

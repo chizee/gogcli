@@ -38,7 +38,7 @@ func buildEventDateTimeWithTimezone(value string, allDay bool, timezone, flagNam
 		return nil, usagef("%s cannot be used with all-day dates", flagName)
 	}
 	if _, err := loadTimezoneLocation(timezone); err != nil {
-		return nil, fmt.Errorf("invalid %s %q: %w", flagName, timezone, err)
+		return nil, usagef("invalid %s %q: %v", flagName, timezone, err)
 	}
 	edt.TimeZone = timezone
 	return edt, nil
@@ -212,14 +212,14 @@ func buildReminders(reminders []string) (*calendar.EventReminders, error) {
 	}
 
 	if len(filtered) > 5 {
-		return nil, fmt.Errorf("maximum 5 reminders allowed (got %d)", len(filtered))
+		return nil, usagef("maximum 5 reminders allowed (got %d)", len(filtered))
 	}
 
 	overrides := make([]*calendar.EventReminder, 0, len(filtered))
 	for _, r := range filtered {
 		method, minutes, err := parseReminder(r)
 		if err != nil {
-			return nil, err
+			return nil, usagef("%v", err)
 		}
 		reminder := &calendar.EventReminder{
 			Method:  method,

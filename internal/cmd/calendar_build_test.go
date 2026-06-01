@@ -56,6 +56,8 @@ func TestBuildEventDateTimeWithTimezoneRejectsInvalidInput(t *testing.T) {
 	}
 	if _, err := buildEventDateTimeWithTimezone("2026-08-13T13:40:00+02:00", false, "Nope/Zone", "--start-timezone"); err == nil {
 		t.Fatalf("expected invalid timezone error")
+	} else if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
 	}
 }
 

@@ -19,6 +19,7 @@
 - Calendar: return an empty JSON array, not null, for `calendar conflicts --json` when no conflicts are found.
 - Calendar: return usage exit code 2 for invalid focus-time and working-location flag values instead of reporting them as generic runtime failures.
 - Calendar: return usage exit code 2 for invalid `calendar respond --status` values instead of reporting them as generic runtime failures.
+- Calendar: return usage exit code 2 for invalid create-event timezones and reminders instead of reporting them as generic runtime failures.
 - Calendar: reject all-day or date-only Out of Office event requests locally because Google Calendar only accepts timed OOO events on enterprise calendars.
 - Contacts: warm the People API contact-search cache, including Google's documented propagation wait, before contact and other-contact searches plus Gmail `--from-contact` resolution so fresh contact changes are visible.
 - Contacts: use an other-contact-safe read mask for `contacts other list` and `contacts other search` so Google does not reject the request.
@@ -32,6 +33,7 @@
 - CLI: report public command paths in dry-run op fields for service-account, Calendar, Forms, Meet, and Sheets named-range commands.
 - CLI: preserve command-local `--fields` API masks for Drive, Drive Labels, Sites, and Calendar Events instead of rewriting them to JSON `--select`.
 - Drive: return usage exit code 2 when `drive download --tab` rejects unsupported export formats.
+- Drive Labels: return usage exit code 2 for invalid integer field values instead of reporting them as generic runtime failures.
 - Gmail: return empty JSON arrays, not null, for empty forwarding address, delegate, and send-as settings lists.
 - Gmail: return usage exit code 2 for invalid vacation responder and auto-forwarding settings flags instead of reporting them as generic runtime failures.
 - Gmail: return usage exit code 2 for invalid message formats and batch-modify label flags instead of reporting them as generic runtime failures.
@@ -41,6 +43,7 @@
 - Gmail: return an empty JSON array, not null, for empty Gmail filter lists and JSON filter exports.
 - Gmail: return usage exit code 2 for invalid `gmail history --since` cursors instead of reporting them as generic runtime failures.
 - Gmail: return an empty JSON array, not null, for `gmail thread attachments --json` when a thread has no attachments.
+- Keep: return usage exit code 2 for invalid attachment names instead of reporting them as generic runtime failures.
 - People: return an empty JSON array, not null, for `people relations --json` when a profile has no relation entries.
 - CLI: stop advertising `ads` as an API command service in root help; it remains available as an auth-only OAuth scope.
 - Sheets: return an empty JSON array, not null, for blank ranges read with `sheets get --json`.
