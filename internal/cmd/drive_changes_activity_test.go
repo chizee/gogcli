@@ -161,4 +161,36 @@ func TestDriveActivityQuery(t *testing.T) {
 	}
 }
 
+func TestDriveActivityQueryValidationFailsBeforeService(t *testing.T) {
+	origNew := newDriveActivityService
+	t.Cleanup(func() { newDriveActivityService = origNew })
+	newDriveActivityService = func(context.Context, string) (*driveactivity.Service, error) {
+		t.Fatalf("expected validation to fail before creating drive activity service")
+		return nil, context.Canceled
+	}
+
+	ctx := newCmdOutputContext(t, io.Discard, io.Discard)
+	flags := &RootFlags{Account: "a@example.com"}
+
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "zero max", args: []string{"--max", "0"}, want: "max must be > 0"},
+		{name: "negative max", args: []string{"--max=-1"}, want: "max must be > 0"},
+		{name: "unknown action", args: []string{"--actions", "nope"}, want: "unknown Drive Activity action"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := &DriveActivityQueryCmd{}
+			err := runKong(t, cmd, tc.args, ctx, flags)
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unexpected err: %v", err)
+			}
+		})
+	}
+}
+
 var _ = drive.Change{}

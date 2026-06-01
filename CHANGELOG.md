@@ -57,6 +57,7 @@
 - Drive: return usage exit code 2 when `drive upload --replace` rejects Google Workspace native files.
 - Drive: return usage exit code 2 for non-positive `drive drives --max` values before auth/API setup.
 - Drive: return usage exit code 2 for non-positive `drive changes list --max` values before auth/API setup.
+- Drive Activity: return usage exit code 2 for non-positive `--max` and unknown `--actions` values before auth/API setup.
 - Drive Labels: return usage exit code 2 for invalid integer field values instead of reporting them as generic runtime failures.
 - Drive Labels: return usage exit code 2 for invalid `--fields-json` values instead of reporting them as generic runtime failures.
 - Drive Labels: return usage exit code 2 for non-positive list `--max` values before auth/API setup.

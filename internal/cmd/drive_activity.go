@@ -37,12 +37,11 @@ func (c *DriveActivityQueryCmd) Run(ctx context.Context, flags *RootFlags) error
 	if strings.TrimSpace(c.File) != "" && strings.TrimSpace(c.Folder) != "" {
 		return usage("use either --file or --folder, not both")
 	}
-	_, svc, err := requireDriveActivityService(ctx, flags)
+	req, err := c.queryRequest()
 	if err != nil {
 		return err
 	}
-
-	req, err := c.queryRequest()
+	_, svc, err := requireDriveActivityService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -88,6 +87,9 @@ func (c *DriveActivityQueryCmd) Run(ctx context.Context, flags *RootFlags) error
 }
 
 func (c *DriveActivityQueryCmd) queryRequest() (*driveactivity.QueryDriveActivityRequest, error) {
+	if c.Max <= 0 {
+		return nil, usage("max must be > 0")
+	}
 	req := &driveactivity.QueryDriveActivityRequest{PageSize: c.Max}
 	if fileID := strings.TrimSpace(c.File); fileID != "" {
 		req.ItemName = "items/" + strings.TrimPrefix(fileID, "items/")
