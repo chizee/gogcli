@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -49,6 +50,45 @@ func TestDriveChangesList(t *testing.T) {
 
 	if err := (&DriveChangesListCmd{Token: "123", Max: 10, IncludeRemoved: true}).Run(newCmdOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@example.com"}); err != nil {
 		t.Fatalf("Run: %v", err)
+	}
+}
+
+func TestDriveChangesWatchValidationBeforeDryRun(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("drive service should not be created")
+		return nil, context.Canceled
+	}
+
+	cases := []struct {
+		name string
+		cmd  DriveChangesWatchCmd
+	}{
+		{
+			name: "missing scheme",
+			cmd:  DriveChangesWatchCmd{Token: "t1", WebhookURL: "nope"},
+		},
+		{
+			name: "http url",
+			cmd:  DriveChangesWatchCmd{Token: "t1", WebhookURL: "http://example.com/hook"},
+		},
+		{
+			name: "negative expiration",
+			cmd:  DriveChangesWatchCmd{Token: "t1", WebhookURL: "https://example.com/hook", ExpirationMS: -1},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cmd.Run(newCmdOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@example.com", DryRun: true})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if got := ExitCode(err); got != 2 {
+				t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+			}
+		})
 	}
 }
 
