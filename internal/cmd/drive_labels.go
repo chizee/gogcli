@@ -404,7 +404,7 @@ func parseDriveLabelFieldAssignment(raw string) (string, []string, error) {
 func parseDriveLabelFieldsJSON(raw string) ([]*drive.LabelFieldModification, error) {
 	var obj map[string]any
 	if err := json.Unmarshal([]byte(raw), &obj); err != nil {
-		return nil, fmt.Errorf("parse --fields-json: %w", err)
+		return nil, usagef("parse --fields-json: %v", err)
 	}
 	mods := make([]*drive.LabelFieldModification, 0, len(obj))
 	for field, value := range obj {

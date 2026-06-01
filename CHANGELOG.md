@@ -45,6 +45,7 @@
 - Drive: return usage exit code 2 when `drive download --format` is used on binary/non-Google Workspace files.
 - Drive: return usage exit code 2 when `drive upload --replace` rejects Google Workspace native files.
 - Drive Labels: return usage exit code 2 for invalid integer field values instead of reporting them as generic runtime failures.
+- Drive Labels: return usage exit code 2 for invalid `--fields-json` values instead of reporting them as generic runtime failures.
 - Gmail: return empty JSON arrays, not null, for empty forwarding address, delegate, and send-as settings lists.
 - Gmail: return usage exit code 2 for invalid vacation responder and auto-forwarding settings flags instead of reporting them as generic runtime failures.
 - Gmail: return usage exit code 2 for invalid message formats and batch-modify label flags instead of reporting them as generic runtime failures.
