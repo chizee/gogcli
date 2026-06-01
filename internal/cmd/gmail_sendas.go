@@ -90,6 +90,9 @@ func (c *GmailSendAsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if sendAsEmail == "" {
 		return usage("email is required")
 	}
+	if validateErr := validateGmailSettingsEmail("email", sendAsEmail); validateErr != nil {
+		return validateErr
+	}
 
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
@@ -130,11 +133,20 @@ func (c *GmailSendAsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if sendAsEmail == "" {
 		return usage("email is required")
 	}
+	if err := validateGmailSettingsEmail("email", sendAsEmail); err != nil {
+		return err
+	}
+	replyTo := strings.TrimSpace(c.ReplyTo)
+	if replyTo != "" {
+		if err := validateGmailSettingsEmail("--reply-to", replyTo); err != nil {
+			return err
+		}
+	}
 
 	sendAs := &gmail.SendAs{
 		SendAsEmail:    sendAsEmail,
 		DisplayName:    c.DisplayName,
-		ReplyToAddress: c.ReplyTo,
+		ReplyToAddress: replyTo,
 		Signature:      c.Signature,
 		TreatAsAlias:   c.TreatAsAlias,
 	}
@@ -180,6 +192,9 @@ func (c *GmailSendAsVerifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if sendAsEmail == "" {
 		return usage("email is required")
 	}
+	if err := validateGmailSettingsEmail("email", sendAsEmail); err != nil {
+		return err
+	}
 
 	if err := dryRunExit(ctx, flags, "gmail.sendas.verify", map[string]any{
 		"email": sendAsEmail,
@@ -222,6 +237,9 @@ func (c *GmailSendAsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
 		return usage("email is required")
+	}
+	if err := validateGmailSettingsEmail("email", sendAsEmail); err != nil {
+		return err
 	}
 
 	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "gmail.sendas.delete", map[string]any{
@@ -271,13 +289,22 @@ func (c *GmailSendAsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flag
 	if sendAsEmail == "" {
 		return usage("email is required")
 	}
+	if err := validateGmailSettingsEmail("email", sendAsEmail); err != nil {
+		return err
+	}
+	replyTo := strings.TrimSpace(c.ReplyTo)
+	if flagProvided(kctx, "reply-to") && replyTo != "" {
+		if err := validateGmailSettingsEmail("--reply-to", replyTo); err != nil {
+			return err
+		}
+	}
 
 	updates := map[string]any{}
 	if flagProvided(kctx, "display-name") {
 		updates["display_name"] = c.DisplayName
 	}
 	if flagProvided(kctx, "reply-to") {
-		updates["reply_to"] = c.ReplyTo
+		updates["reply_to"] = replyTo
 	}
 	if flagProvided(kctx, "signature") {
 		updates["signature"] = c.Signature
@@ -317,7 +344,7 @@ func (c *GmailSendAsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flag
 		current.DisplayName = c.DisplayName
 	}
 	if flagProvided(kctx, "reply-to") {
-		current.ReplyToAddress = c.ReplyTo
+		current.ReplyToAddress = replyTo
 	}
 	if flagProvided(kctx, "signature") {
 		current.Signature = c.Signature
