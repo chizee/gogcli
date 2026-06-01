@@ -362,11 +362,11 @@ func parseSheetsBatchUpdateData(dataJSON string) ([]*sheets.ValueRange, error) {
 	}
 	b, err := resolveInlineOrFileBytes(dataJSON)
 	if err != nil {
-		return nil, fmt.Errorf("read --data-json: %w", err)
+		return nil, usagef("read --data-json: %v", err)
 	}
 	var data []*sheets.ValueRange
 	if unmarshalErr := json.Unmarshal(b, &data); unmarshalErr != nil {
-		return nil, fmt.Errorf("invalid JSON data: %w", unmarshalErr)
+		return nil, usagef("invalid JSON data: %v", unmarshalErr)
 	}
 	if len(data) == 0 {
 		return nil, usage("--data-json must contain at least one value range")

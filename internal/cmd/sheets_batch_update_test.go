@@ -172,6 +172,8 @@ func TestParseSheetsBatchUpdateDataRejectsInvalidPayloads(t *testing.T) {
 		in   string
 		want string
 	}{
+		{name: "bad file reference", in: `@`, want: "empty @file reference"},
+		{name: "invalid json", in: `nope`, want: "invalid JSON data"},
 		{name: "empty array", in: `[]`, want: "at least one value range"},
 		{name: "null range", in: `[null]`, want: "range 0 is null"},
 		{name: "empty range", in: `[{"range":"","values":[["a"]]}]`, want: "empty range"},
@@ -182,6 +184,9 @@ func TestParseSheetsBatchUpdateDataRejectsInvalidPayloads(t *testing.T) {
 			_, err := parseSheetsBatchUpdateData(tc.in)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want substring %q", err, tc.want)
+			}
+			if got := ExitCode(err); got != 2 {
+				t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
 			}
 		})
 	}
