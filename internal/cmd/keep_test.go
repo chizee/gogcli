@@ -374,6 +374,9 @@ func TestKeepSearch_EmptyQuery(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
 }
 
 func TestKeepSearch_NoMatch(t *testing.T) {

@@ -131,7 +131,7 @@ func (c *KeepSearchCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd
 	u := ui.FromContext(ctx)
 
 	if strings.TrimSpace(c.Query) == "" {
-		return fmt.Errorf("search query cannot be empty")
+		return usage("search query cannot be empty")
 	}
 
 	svc, err := getKeepService(ctx, flags, keep)

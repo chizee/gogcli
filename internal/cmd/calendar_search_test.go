@@ -93,6 +93,16 @@ func TestCalendarSearchCmd_JSON(t *testing.T) {
 	}
 }
 
+func TestCalendarSearchCmd_EmptyQueryIsUsage(t *testing.T) {
+	err := (&CalendarSearchCmd{Query: " "}).Run(context.Background(), &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+}
+
 func TestCalendarSearchCmd_UsesResolvedAliasID(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
