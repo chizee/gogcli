@@ -21,6 +21,7 @@ type mailAttachment struct {
 	Filename string
 	MIMEType string
 	Data     []byte
+	DataSet  bool
 }
 
 type rfc822Config struct {
@@ -195,7 +196,7 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 				a.MIMEType = "application/octet-stream"
 			}
 		}
-		if len(a.Data) == 0 {
+		if len(a.Data) == 0 && !a.DataSet {
 			data, err := os.ReadFile(a.Path)
 			if err != nil {
 				return nil, err

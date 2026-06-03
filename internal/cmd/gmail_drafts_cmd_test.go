@@ -1270,6 +1270,15 @@ func TestGmailDraftsUpdateCmd_WithQuoteAndReplyToMessageID(t *testing.T) {
 				},
 			})
 			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			// Update now reads the existing draft to preserve attachments; this
+			// draft has none, so preservation is a no-op.
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "dm1", "threadId": "t1"},
+			})
+			return
 		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -1588,5 +1597,151 @@ func TestGmailDraftsUpdateCmd_WithThreadIDOverridesExisting(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "Subject: Re: Original") {
 		t.Fatalf("subject not auto-filled from caller thread:\n%s", string(raw))
+	}
+}
+
+// draftUpdateAttachmentServer stubs a draft (with one attachment) get, the
+// attachment bytes endpoint, and the update PUT (capturing the posted draft).
+func draftUpdateAttachmentServer(t *testing.T, posted *gmail.Draft, attBytesHit *bool) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id": "dm1",
+					"payload": map[string]any{
+						"mimeType": "multipart/mixed",
+						"headers":  []map[string]any{{"name": "To", "value": "keep@example.com"}},
+						"parts": []map[string]any{
+							{"mimeType": "text/plain", "body": map[string]any{"data": base64.RawURLEncoding.EncodeToString([]byte("old body"))}},
+							{"filename": "report.pdf", "mimeType": "application/pdf", "body": map[string]any{"attachmentId": "att1", "size": 5}},
+							{"filename": "empty.bin", "mimeType": "application/octet-stream", "body": map[string]any{"attachmentId": "att-empty", "size": 0}},
+							{"filename": "inline.txt", "mimeType": "text/plain", "body": map[string]any{"data": base64.RawURLEncoding.EncodeToString([]byte("INLINE")), "size": 6}},
+							{"filename": "zero.txt", "mimeType": "text/plain", "body": map[string]any{"data": "", "size": 0}},
+						},
+					},
+				},
+			})
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/dm1/attachments/att1") && r.Method == http.MethodGet:
+			*attBytesHit = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": base64.RawURLEncoding.EncodeToString([]byte("HELLO")), "size": 5})
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/dm1/attachments/att-empty") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": "", "size": 0})
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			if unmarshalErr := json.Unmarshal(body, posted); unmarshalErr != nil {
+				t.Fatalf("unmarshal: %v", unmarshalErr)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m2", "threadId": "t1"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func runDraftUpdate(t *testing.T, srv *httptest.Server, args []string) {
+	t.Helper()
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(), option.WithHTTPClient(srv.Client()), option.WithEndpoint(srv.URL+"/"))
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	_ = captureStdout(t, func() {
+		if runErr := runKong(t, &GmailDraftsUpdateCmd{}, args, ctx, flags); runErr != nil {
+			t.Fatalf("execute: %v", runErr)
+		}
+	})
+}
+
+// Omitting --attach on update preserves the draft's existing attachments.
+func TestGmailDraftsUpdateCmd_PreservesAttachmentsWhenOmitted(t *testing.T) {
+	var posted gmail.Draft
+	attBytesHit := false
+	srv := draftUpdateAttachmentServer(t, &posted, &attBytesHit)
+	defer srv.Close()
+
+	runDraftUpdate(t, srv, []string{"d1", "--to", "keep@example.com", "--subject", "S", "--body", "new body"})
+
+	if !attBytesHit {
+		t.Fatal("expected attachment bytes to be fetched for preservation")
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(posted.Message.Raw)
+	if err != nil {
+		t.Fatalf("decode raw: %v", err)
+	}
+	s := string(raw)
+	if !strings.Contains(s, `filename="report.pdf"`) {
+		t.Fatalf("preserved attachment filename missing from rebuilt draft:\n%s", s)
+	}
+	if !strings.Contains(s, base64.StdEncoding.EncodeToString([]byte("HELLO"))) {
+		t.Fatalf("preserved attachment bytes missing from rebuilt draft:\n%s", s)
+	}
+	if !strings.Contains(s, `filename="empty.bin"`) {
+		t.Fatalf("zero-byte fetched attachment filename missing from rebuilt draft:\n%s", s)
+	}
+	if !strings.Contains(s, `filename="inline.txt"`) {
+		t.Fatalf("inline attachment filename missing from rebuilt draft:\n%s", s)
+	}
+	if !strings.Contains(s, base64.StdEncoding.EncodeToString([]byte("INLINE"))) {
+		t.Fatalf("inline attachment bytes missing from rebuilt draft:\n%s", s)
+	}
+	if !strings.Contains(s, `filename="zero.txt"`) {
+		t.Fatalf("zero-byte inline attachment filename missing from rebuilt draft:\n%s", s)
+	}
+}
+
+// --clear-attachments drops the draft's existing attachments and skips the byte fetch.
+func TestGmailDraftsUpdateCmd_ClearAttachmentsRemovesThem(t *testing.T) {
+	var posted gmail.Draft
+	attBytesHit := false
+	srv := draftUpdateAttachmentServer(t, &posted, &attBytesHit)
+	defer srv.Close()
+
+	runDraftUpdate(t, srv, []string{"d1", "--to", "keep@example.com", "--subject", "S", "--body", "new body", "--clear-attachments"})
+
+	if attBytesHit {
+		t.Fatal("did not expect attachment bytes to be fetched when clearing")
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(posted.Message.Raw)
+	if err != nil {
+		t.Fatalf("decode raw: %v", err)
+	}
+	if strings.Contains(string(raw), "report.pdf") {
+		t.Fatalf("attachment should have been cleared:\n%s", string(raw))
+	}
+}
+
+// --attach and --clear-attachments are mutually exclusive.
+func TestGmailDraftsUpdateCmd_AttachAndClearMutuallyExclusive(t *testing.T) {
+	attachPath := filepath.Join(t.TempDir(), "f.txt")
+	if err := os.WriteFile(attachPath, []byte("x"), 0o600); err != nil {
+		t.Fatalf("write attach: %v", err)
+	}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	flags := &RootFlags{Account: "a@b.com"}
+	err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1", "--subject", "S", "--body", "B", "--attach", attachPath, "--clear-attachments",
+	}, ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "use only one of --attach or --clear-attachments") {
+		t.Fatalf("expected mutual-exclusion error, got %v", err)
 	}
 }

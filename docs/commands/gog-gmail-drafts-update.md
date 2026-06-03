@@ -20,12 +20,13 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
-| `--attach` | `[]string` |  | Attachment file path (repeatable) |
+| `--attach` | `[]string` |  | Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all. |
 | `--bcc` | `string` |  | BCC recipients (comma-separated) |
 | `--body` | `string` |  | Body (plain text; required unless --body-html is set) |
 | `--body-file` | `string` |  | Body file path (plain text; '-' for stdin) |
 | `--body-html` | `string` |  | Body (HTML; optional) |
 | `--cc` | `string` |  | CC recipients (comma-separated) |
+| `--clear-attachments` | `bool` |  | Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments. |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

@@ -100,6 +100,7 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Filename: att.Filename,
 				MIMEType: att.MimeType,
 				Data:     data,
+				DataSet:  true,
 			})
 		}
 	}
