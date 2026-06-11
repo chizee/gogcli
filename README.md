@@ -390,7 +390,8 @@ jobs.
 
 ## Output and Automation
 
-Docs: [Safety Profiles](docs/safety-profiles.md),
+Docs: [Automation](docs/automation.md),
+[Safety Profiles](docs/safety-profiles.md),
 [`gog schema`](docs/commands/gog-schema.md),
 [`gog config no-send`](docs/commands/gog-config-no-send.md).
 
@@ -402,7 +403,17 @@ gog --json gmail search 'has:attachment newer_than:90d' --max 50 |
   jq -r '.threads[].id'
 
 gog --plain calendar events --today
+gog schema --json
+gog schema --json | jq '.automation'
 ```
+
+There is no separate agent mode. The same CLI is designed for interactive use,
+scripts, CI, and agents: `--json`/`--plain` keep stdout parseable, `--no-input`
+prevents prompts, stable exit codes classify failures, `--wrap-untrusted`
+marks fetched free text, and runtime or baked command policies constrain
+available operations. Root `--help` summarizes that contract; `gog schema
+--json` exposes the complete command schema, exit-code map, and effective
+safety state. See [Automation](docs/automation.md).
 
 Useful global flags:
 
@@ -638,6 +649,7 @@ go run scripts/gen-auth-services-md.go
 - [Docs editing](docs/docs-editing.md) — <https://gogcli.sh/docs-editing.html>
 - [Sheets tables](docs/sheets-tables.md) and [Sheets formatting](docs/sheets-formatting.md)
 - [Safety profiles](docs/safety-profiles.md) — command guards and baked safe binaries
+- [Automation](docs/automation.md) — machine output, safety state, schema, and stable exit codes
 - [Auth clients](docs/auth-clients.md) — OAuth clients, account mapping, and service accounts
 - [Workspace Admin](docs/workspace-admin.md) — Workspace user, org unit, and group administration
 - [Backup](docs/backup.md) — encrypted Google account backups

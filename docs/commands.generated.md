@@ -22,8 +22,6 @@ Generated from `gog schema --json`.
       - [`gog admin users get (info,show) <userEmail>`](commands/gog-admin-users-get.md) - Get user details
       - [`gog admin users list (ls) [flags]`](commands/gog-admin-users-list.md) - List users in a domain
       - [`gog admin users suspend <userEmail>`](commands/gog-admin-users-suspend.md) - Suspend a user account
-  - [`gog agent <command> [flags]`](commands/gog-agent.md) - Agent-friendly helpers
-    - [`gog agent exit-codes (exitcodes,exit-code)`](commands/gog-agent-exit-codes.md) - Print stable exit codes for automation
   - [`gog analytics (ga) <command> [flags]`](commands/gog-analytics.md) - Google Analytics
     - [`gog analytics (ga) accounts (list,ls) [flags]`](commands/gog-analytics-accounts.md) - List GA4 account summaries
     - [`gog analytics (ga) report <property> [flags]`](commands/gog-analytics-report.md) - Run a GA4 report (Analytics Data API)
@@ -344,7 +342,6 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) unshare <fileId> <permissionId>`](commands/gog-drive-unshare.md) - Remove a permission from a file
     - [`gog drive (drv) upload <localPath> [flags]`](commands/gog-drive-upload.md) - Upload a file
     - [`gog drive (drv) url <fileId> ...`](commands/gog-drive-url.md) - Print web URLs for files
-  - [`gog exit-codes (exitcodes) [flags]`](commands/gog-exit-codes.md) - Print stable exit codes (alias for 'agent exit-codes')
   - [`gog forms (form) <command> [flags]`](commands/gog-forms.md) - Google Forms
     - [`gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]`](commands/gog-forms-add-question.md) - Add a question to a form
     - [`gog forms (form) create (new) --title=STRING [flags]`](commands/gog-forms-create.md) - Create a form

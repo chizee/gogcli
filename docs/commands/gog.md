@@ -17,7 +17,6 @@ gog <command> [flags]
 ## Subcommands
 
 - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
-- [gog agent](gog-agent.md) - Agent-friendly helpers
 - [gog analytics](gog-analytics.md) - Google Analytics
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
@@ -32,7 +31,6 @@ gog <command> [flags]
 - [gog docs](gog-docs.md) - Google Docs (export via Drive)
 - [gog download](gog-download.md) - Download a Drive file (alias for 'drive download')
 - [gog drive](gog-drive.md) - Google Drive
-- [gog exit-codes](gog-exit-codes.md) - Print stable exit codes (alias for 'agent exit-codes')
 - [gog forms](gog-forms.md) - Google Forms
 - [gog gmail](gog-gmail.md) - Gmail
 - [gog groups](gog-groups.md) - Google Groups

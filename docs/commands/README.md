@@ -2,12 +2,11 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 632.
+Generated pages: 629.
 
 ## Top-level Commands
 
 - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
-- [gog agent](gog-agent.md) - Agent-friendly helpers
 - [gog analytics](gog-analytics.md) - Google Analytics
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
@@ -22,7 +21,6 @@ Generated pages: 632.
 - [gog docs](gog-docs.md) - Google Docs (export via Drive)
 - [gog download](gog-download.md) - Download a Drive file (alias for 'drive download')
 - [gog drive](gog-drive.md) - Google Drive
-- [gog exit-codes](gog-exit-codes.md) - Print stable exit codes (alias for 'agent exit-codes')
 - [gog forms](gog-forms.md) - Google Forms
 - [gog gmail](gog-gmail.md) - Gmail
 - [gog groups](gog-groups.md) - Google Groups
@@ -75,8 +73,6 @@ Generated pages: 632.
       - [gog admin users get](gog-admin-users-get.md) - Get user details
       - [gog admin users list](gog-admin-users-list.md) - List users in a domain
       - [gog admin users suspend](gog-admin-users-suspend.md) - Suspend a user account
-  - [gog agent](gog-agent.md) - Agent-friendly helpers
-    - [gog agent exit-codes](gog-agent-exit-codes.md) - Print stable exit codes for automation
   - [gog analytics](gog-analytics.md) - Google Analytics
     - [gog analytics accounts](gog-analytics-accounts.md) - List GA4 account summaries
     - [gog analytics report](gog-analytics-report.md) - Run a GA4 report (Analytics Data API)
@@ -397,7 +393,6 @@ Generated pages: 632.
     - [gog drive unshare](gog-drive-unshare.md) - Remove a permission from a file
     - [gog drive upload](gog-drive-upload.md) - Upload a file
     - [gog drive url](gog-drive-url.md) - Print web URLs for files
-  - [gog exit-codes](gog-exit-codes.md) - Print stable exit codes (alias for 'agent exit-codes')
   - [gog forms](gog-forms.md) - Google Forms
     - [gog forms add-question](gog-forms-add-question.md) - Add a question to a form
     - [gog forms create](gog-forms-create.md) - Create a form

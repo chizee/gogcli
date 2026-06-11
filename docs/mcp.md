@@ -129,6 +129,10 @@ Write tools, hidden unless `--allow-write`:
 The generated command reference for the server itself is
 [`gog mcp`](commands/gog-mcp.md).
 
+MCP clients discover the registered surface through the protocol's standard
+`tools/list` request. For shell-side inspection before starting the server, use
+`gog mcp --list-tools`; no model-callable discovery tool is added.
+
 ## Client configuration
 
 MCP clients usually need a command and an argument list. Put account selection

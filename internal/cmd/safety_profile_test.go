@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,6 +128,39 @@ func TestReadonlySafetyProfileBlocksNestedMutations(t *testing.T) {
 		if got := err.Error(); !strings.Contains(got, "baked safety profile") {
 			t.Fatalf("unexpected error for %v: %v", args, err)
 		}
+	}
+}
+
+func TestBundledSafetyProfilesExposeAutomationSchema(t *testing.T) {
+	setTestConfigHome(t)
+
+	for _, profile := range []string{"agent-safe.yaml", "readonly.yaml"} {
+		profile := profile
+		t.Run(profile, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", profile))
+			if err != nil {
+				t.Fatalf("read %s: %v", profile, err)
+			}
+			withBakedSafetyProfile(t, string(raw))
+
+			out := captureStdout(t, func() {
+				_ = captureStderr(t, func() {
+					if err := Execute([]string{"schema"}); err != nil {
+						t.Fatalf("Execute(schema): %v", err)
+					}
+				})
+			})
+			var doc schemaDoc
+			if err := json.Unmarshal([]byte(out), &doc); err != nil {
+				t.Fatalf("unmarshal schema: %v", err)
+			}
+			if !doc.Automation.Safety.BakedProfile.Enabled {
+				t.Fatalf("expected baked profile metadata: %#v", doc.Automation.Safety.BakedProfile)
+			}
+			if doc.Automation.Safety.BakedProfile.Name != strings.TrimSuffix(profile, ".yaml") {
+				t.Fatalf("profile name = %q", doc.Automation.Safety.BakedProfile.Name)
+			}
+		})
 	}
 }
 
