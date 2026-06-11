@@ -21,6 +21,12 @@ Replace the document body with Markdown from a file:
 gog docs write <docId> --replace --markdown --content-file README.md
 ```
 
+The local Markdown renderer keeps headings adjacent to their following body,
+keeps inline replacements in their current paragraph unless the replacement
+ends with a newline, resets inherited styles before applying replacement
+formatting, and renders HTML `<br>` variants inside table cells. Fenced code
+blocks use Roboto Mono with dark-green text and paragraph shading.
+
 Add `--check-orphans` to block the replacement when an open, currently
 located comment quote would disappear:
 
@@ -80,7 +86,56 @@ gog docs paragraphs list <docId> --style NORMAL_TEXT --tab "Notes"
 
 All four commands accept `--tab` by title or ID. JSON output includes stable
 element indexes and Docs API positions; `--plain` emits headerless TSV for
-shell pipelines.
+shell pipelines. Paragraph JSON also reports `isEmpty` plus each text run's
+UTF-16 range, text style, and link metadata.
+
+Command pages:
+
+- [`gog docs tables list`](commands/gog-docs-tables-list.md)
+- [`gog docs images list`](commands/gog-docs-images-list.md)
+- [`gog docs headings list`](commands/gog-docs-headings-list.md)
+- [`gog docs paragraphs list`](commands/gog-docs-paragraphs-list.md)
+
+## Named Ranges
+
+Create a durable document anchor from matched text or explicit Docs API
+indexes:
+
+```bash
+gog docs named-range create <docId> --name ReleaseStatus --at "Ready to ship"
+gog docs named-range create <docId> --name ReleaseStatus --start 42 --end 55
+```
+
+List, replace, or delete the range by name or ID:
+
+```bash
+gog docs named-range list <docId> --json
+gog docs named-range replace <docId> ReleaseStatus --text "Released"
+gog docs named-range delete <docId> ReleaseStatus
+```
+
+Commands are tab-aware. Use `--occurrence` when `--at` matches more than once,
+and `--match-case` when case matters.
+
+Command page:
+
+- [`gog docs named-range`](commands/gog-docs-named-range.md)
+
+## Images
+
+Insert a public HTTPS image directly without uploading it to Drive:
+
+```bash
+gog docs insert-image <docId> --url https://example.com/chart.png --at end
+```
+
+Use `--file` for local PNG, JPEG, or GIF input. Local files are uploaded to
+Drive and may require link sharing; `--url` leaves Drive permissions unchanged.
+Both modes accept `--tab`, `--width`, and `--height`.
+
+Command page:
+
+- [`gog docs insert-image`](commands/gog-docs-insert-image.md)
 
 ## Page Breaks
 

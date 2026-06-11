@@ -24,6 +24,33 @@ gog sheets format "$spreadsheet_id" 'Sheet1!A1:C1' \
   --format-fields textFormat.bold
 ```
 
+## Data Validation
+
+Set dropdown, checkbox, number, date, range, or custom-formula validation:
+
+```bash
+gog sheets validation set "$spreadsheet_id" 'Sheet1!B2:B100' \
+  --type ONE_OF_LIST --value Open --value Done --strict
+gog sheets validation set "$spreadsheet_id" 'Sheet1!C2:C100' --type BOOLEAN
+gog sheets validation set "$spreadsheet_id" 'Sheet1!D2:D100' \
+  --type NUMBER_BETWEEN --value 1 --value 100
+gog sheets validation set "$spreadsheet_id" 'Sheet1!E2:E100' \
+  --type ONE_OF_RANGE --value 'Lists!A2:A20'
+```
+
+Inspect or clear rules:
+
+```bash
+gog sheets validation get "$spreadsheet_id" 'Sheet1!B2:E100' --json
+gog sheets validation clear "$spreadsheet_id" 'Sheet1!B2:E100'
+```
+
+Google Sheets stores table dropdowns on the table column rather than ordinary
+cells. When a target fully selects a table-managed dropdown column, pass
+`--filtered-rows-included` to set or clear it. Clearing converts that table
+column to text. Validation-only copy/paste preserves table-managed dropdown
+definitions when copying from a table column into ordinary cells.
+
 ## Conditional Formats
 
 Add a rule to a sheet-qualified range:
@@ -95,6 +122,10 @@ gog sheets banding clear "$spreadsheet_id" --sheet Sheet1 --all --force
 
 ## Command Pages
 
+- [`gog sheets validation`](commands/gog-sheets-validation.md)
+- [`gog sheets validation get`](commands/gog-sheets-validation-get.md)
+- [`gog sheets validation set`](commands/gog-sheets-validation-set.md)
+- [`gog sheets validation clear`](commands/gog-sheets-validation-clear.md)
 - [`gog sheets conditional-format`](commands/gog-sheets-conditional-format.md)
 - [`gog sheets conditional-format add`](commands/gog-sheets-conditional-format-add.md)
 - [`gog sheets conditional-format list`](commands/gog-sheets-conditional-format-list.md)

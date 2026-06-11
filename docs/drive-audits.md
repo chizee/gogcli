@@ -56,6 +56,25 @@ gog drive inventory --parent <folderId> --max 0 --depth 0 --json > drive-invento
 Use inventory output when you need a machine-readable list of Drive objects for
 review, diffing, or downstream cleanup scripts.
 
+## Revisions
+
+List revision metadata for a Drive file, then inspect one revision:
+
+```bash
+gog drive revisions list <fileId> --all --json
+gog drive revisions get <fileId> <revisionId> --json
+```
+
+The Drive API exposes revision IDs, timestamps, keep-forever state, and
+provider export links where available. For native Docs Editors files it does
+not expose complete editor history or historical document bodies.
+
+Command pages:
+
+- [`gog drive revisions`](commands/gog-drive-revisions.md)
+- [`gog drive revisions list`](commands/gog-drive-revisions-list.md)
+- [`gog drive revisions get`](commands/gog-drive-revisions-get.md)
+
 ## Permission Audits
 
 Find public or external shares without changing files:

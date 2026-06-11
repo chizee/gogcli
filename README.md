@@ -167,6 +167,10 @@ gog calendar create primary --summary "Coffee" \
   --to "2026-05-06T10:30:00+02:00" \
   --location-search "Elysian Coffee Vancouver"
 gog calendar update primary <eventId> --with-meet
+gog calendar update primary <eventId> \
+  --attachment 'https://drive.google.com/open?id=<fileId>'
+# Repeated --attachment values replace all attachments; an empty value clears them.
+gog calendar update primary <eventId> --attachment ''
 gog zoom auth setup
 gog calendar create primary --summary "Client sync" \
   --from "2026-05-06T11:00:00+02:00" \
@@ -273,6 +277,8 @@ gog docs write <docId> --append --markdown --text '## Status'
 gog docs format <docId> --match Status --bold --font-size 18
 gog docs insert-page-break <docId> --at-end
 gog docs insert-table <docId> --rows 3 --cols 2 --at-end
+gog docs named-range create <docId> --name Status --at "Ready"
+gog docs insert-image <docId> --url https://example.com/chart.png --at end
 gog docs add-tab <docId> --title "Notes"
 gog docs tabs add <docId> --title "Notes"
 gog docs find-replace <docId> old new --tab "Notes" --dry-run
@@ -292,6 +298,8 @@ gog sheets batch-update <spreadsheetId> --data-json @updates.json --json
 gog sheets table list <spreadsheetId>
 gog sheets table append <spreadsheetId> Tasks 'Ship README|done'
 gog sheets table clear <spreadsheetId> Tasks
+gog sheets validation set <spreadsheetId> 'Sheet1!B2:B100' \
+  --type ONE_OF_LIST --value Open --value Done
 gog sheets conditional-format add <spreadsheetId> 'Sheet1!A2:A100' \
   --type text-contains \
   --expr blocked \
