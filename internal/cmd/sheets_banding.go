@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -11,7 +9,7 @@ import (
 	"google.golang.org/api/sheets/v4"
 
 	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/sheetsa1"
+	"github.com/steipete/gogcli/internal/sheetsbanding"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -73,13 +71,11 @@ func (c *SheetsBandingSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	req := &sheets.BatchUpdateSpreadsheetRequest{Requests: []*sheets.Request{{
-		AddBanding: &sheets.AddBandingRequest{BandedRange: &sheets.BandedRange{
-			Range:            gridRange,
-			RowProperties:    rowProps,
-			ColumnProperties: colProps,
-		}},
-	}}}
+	req := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			sheetsbanding.BuildAddRequest(gridRange, rowProps, colProps),
+		},
+	}
 	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Context(ctx).Do()
 	if err != nil {
 		return err
@@ -127,7 +123,7 @@ func (c *SheetsBandingListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	items := bandingItems(resp, strings.TrimSpace(c.Sheet))
+	items := sheetsbanding.Items(resp, strings.TrimSpace(c.Sheet))
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"bandedRanges": items})
 	}
@@ -183,7 +179,7 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 	requests := []*sheets.Request{}
 	var removed int
 	if c.BandedRangeID > 0 {
-		requests = append(requests, bandingDeleteRequest(c.BandedRangeID))
+		requests = append(requests, sheetsbanding.DeleteRequest(c.BandedRangeID))
 		removed = 1
 	} else {
 		account, err := requireAccount(flags)
@@ -201,12 +197,12 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 		if err != nil {
 			return err
 		}
-		ids, found := bandingIDsForSheet(resp, sheetName)
+		ids, found := sheetsbanding.IDsForSheet(resp, sheetName)
 		if !found {
 			return usagef("unknown sheet %q", sheetName)
 		}
 		for _, id := range ids {
-			requests = append(requests, bandingDeleteRequest(id))
+			requests = append(requests, sheetsbanding.DeleteRequest(id))
 		}
 		removed = len(requests)
 	}
@@ -250,18 +246,8 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 	return nil
 }
 
-type bandingItem struct {
-	BandedRangeID    int64                     `json:"bandedRangeId"`
-	SheetID          int64                     `json:"sheetId"`
-	SheetTitle       string                    `json:"sheetTitle"`
-	A1               string                    `json:"a1,omitempty"`
-	Range            *sheets.GridRange         `json:"range,omitempty"`
-	RowProperties    *sheets.BandingProperties `json:"rowProperties,omitempty"`
-	ColumnProperties *sheets.BandingProperties `json:"columnProperties,omitempty"`
-}
-
 func bandingProperties(rowJSON, columnJSON string, input io.Reader) (*sheets.BandingProperties, *sheets.BandingProperties, error) {
-	rowProps, err := parseBandingProperties(rowJSON, defaultRowBandingProperties(), input)
+	rowProps, err := parseBandingProperties(rowJSON, sheetsbanding.DefaultRowProperties(), input)
 	if err != nil {
 		return nil, nil, usagef("invalid --row-properties-json: %v", err)
 	}
@@ -283,80 +269,5 @@ func parseBandingProperties(raw string, fallback *sheets.BandingProperties, inpu
 	if err != nil {
 		return nil, err
 	}
-	var props sheets.BandingProperties
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&props); err != nil {
-		return nil, err
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		if err == nil {
-			return nil, fmt.Errorf("multiple JSON values")
-		}
-		return nil, err
-	}
-	return &props, nil
-}
-
-func defaultRowBandingProperties() *sheets.BandingProperties {
-	return &sheets.BandingProperties{
-		HeaderColorStyle:     &sheets.ColorStyle{RgbColor: &sheets.Color{Red: 0.88, Green: 0.93, Blue: 1}},
-		FirstBandColorStyle:  &sheets.ColorStyle{RgbColor: &sheets.Color{Red: 1, Green: 1, Blue: 1}},
-		SecondBandColorStyle: &sheets.ColorStyle{RgbColor: &sheets.Color{Red: 0.96, Green: 0.98, Blue: 1}},
-	}
-}
-
-func bandingItems(resp *sheets.Spreadsheet, onlySheet string) []bandingItem {
-	items := make([]bandingItem, 0)
-	if resp == nil {
-		return items
-	}
-	for _, sheet := range resp.Sheets {
-		if sheet == nil || sheet.Properties == nil {
-			continue
-		}
-		sheetTitle := sheet.Properties.Title
-		if onlySheet != "" && sheetTitle != onlySheet {
-			continue
-		}
-		for _, br := range sheet.BandedRanges {
-			if br == nil {
-				continue
-			}
-			items = append(items, bandingItem{
-				BandedRangeID:    br.BandedRangeId,
-				SheetID:          sheet.Properties.SheetId,
-				SheetTitle:       sheetTitle,
-				A1:               sheetsa1.FormatGridRange(sheetTitle, br.Range),
-				Range:            br.Range,
-				RowProperties:    br.RowProperties,
-				ColumnProperties: br.ColumnProperties,
-			})
-		}
-	}
-	return items
-}
-
-func bandingIDsForSheet(resp *sheets.Spreadsheet, sheetName string) ([]int64, bool) {
-	if resp == nil {
-		return nil, false
-	}
-	for _, sheet := range resp.Sheets {
-		if sheet == nil || sheet.Properties == nil || sheet.Properties.Title != sheetName {
-			continue
-		}
-		ids := make([]int64, 0, len(sheet.BandedRanges))
-		for _, br := range sheet.BandedRanges {
-			if br != nil {
-				ids = append(ids, br.BandedRangeId)
-			}
-		}
-		return ids, true
-	}
-	return nil, false
-}
-
-func bandingDeleteRequest(id int64) *sheets.Request {
-	return &sheets.Request{DeleteBanding: &sheets.DeleteBandingRequest{BandedRangeId: id}}
+	return sheetsbanding.DecodeProperties(b)
 }
