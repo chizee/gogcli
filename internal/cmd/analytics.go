@@ -119,20 +119,17 @@ func (c *AnalyticsReportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	property := normalizeAnalyticsProperty(c.Property)
-	if property == "" {
-		return usage("empty property")
-	}
-	metrics := splitCommaList(c.Metrics)
-	if len(metrics) == 0 {
-		return usage("empty --metrics")
-	}
-	dimensions := splitCommaList(c.Dimensions)
-	if c.Max <= 0 {
-		return usage("--max must be > 0")
-	}
-	if c.Offset < 0 {
-		return usage("--offset must be >= 0")
+	plan, err := newAnalyticsReportPlan(analyticsReportInput{
+		Property:   c.Property,
+		From:       c.From,
+		To:         c.To,
+		Dimensions: c.Dimensions,
+		Metrics:    c.Metrics,
+		Max:        c.Max,
+		Offset:     c.Offset,
+	})
+	if err != nil {
+		return err
 	}
 
 	svc, err := analyticsDataService(ctx, account)
@@ -140,31 +137,18 @@ func (c *AnalyticsReportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	req := &analyticsdata.RunReportRequest{
-		DateRanges: []*analyticsdata.DateRange{{
-			StartDate: strings.TrimSpace(c.From),
-			EndDate:   strings.TrimSpace(c.To),
-		}},
-		Metrics: analyticsMetrics(metrics),
-		Limit:   c.Max,
-		Offset:  c.Offset,
-	}
-	if len(dimensions) > 0 {
-		req.Dimensions = analyticsDimensions(dimensions)
-	}
-
-	resp, err := svc.Properties.RunReport(property, req).Context(ctx).Do()
+	resp, err := svc.Properties.RunReport(plan.Property, plan.Request).Context(ctx).Do()
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-			"property":         property,
-			"from":             req.DateRanges[0].StartDate,
-			"to":               req.DateRanges[0].EndDate,
-			"dimensions":       dimensions,
-			"metrics":          metrics,
+			"property":         plan.Property,
+			"from":             plan.From,
+			"to":               plan.To,
+			"dimensions":       plan.Dimensions,
+			"metrics":          plan.Metrics,
 			"row_count":        resp.RowCount,
 			"dimensionHeaders": resp.DimensionHeaders,
 			"metricHeaders":    resp.MetricHeaders,
@@ -183,11 +167,11 @@ func (c *AnalyticsReportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return failEmptyExit(c.FailEmpty)
 	}
 
-	headers := make([]string, 0, len(dimensions)+len(metrics))
-	for _, d := range dimensions {
+	headers := make([]string, 0, len(plan.Dimensions)+len(plan.Metrics))
+	for _, d := range plan.Dimensions {
 		headers = append(headers, strings.ToUpper(d))
 	}
-	for _, m := range metrics {
+	for _, m := range plan.Metrics {
 		headers = append(headers, strings.ToUpper(m))
 	}
 
@@ -195,51 +179,16 @@ func (c *AnalyticsReportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	defer flush()
 	fmt.Fprintln(w, strings.Join(headers, "\t"))
 	for _, row := range resp.Rows {
-		values := make([]string, 0, len(dimensions)+len(metrics))
-		for i := range dimensions {
+		values := make([]string, 0, len(plan.Dimensions)+len(plan.Metrics))
+		for i := range plan.Dimensions {
 			values = append(values, sanitizeTab(analyticsDimensionValue(row, i)))
 		}
-		for i := range metrics {
+		for i := range plan.Metrics {
 			values = append(values, sanitizeTab(analyticsMetricValue(row, i)))
 		}
 		fmt.Fprintln(w, strings.Join(values, "\t"))
 	}
 	return nil
-}
-
-func normalizeAnalyticsProperty(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "properties/") {
-		return raw
-	}
-	return "properties/" + strings.TrimPrefix(raw, "/")
-}
-
-func analyticsDimensions(names []string) []*analyticsdata.Dimension {
-	out := make([]*analyticsdata.Dimension, 0, len(names))
-	for _, n := range names {
-		n = strings.TrimSpace(n)
-		if n == "" {
-			continue
-		}
-		out = append(out, &analyticsdata.Dimension{Name: n})
-	}
-	return out
-}
-
-func analyticsMetrics(names []string) []*analyticsdata.Metric {
-	out := make([]*analyticsdata.Metric, 0, len(names))
-	for _, n := range names {
-		n = strings.TrimSpace(n)
-		if n == "" {
-			continue
-		}
-		out = append(out, &analyticsdata.Metric{Name: n})
-	}
-	return out
 }
 
 func analyticsDimensionValue(row *analyticsdata.Row, index int) string {
