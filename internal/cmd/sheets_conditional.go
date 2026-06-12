@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -46,7 +47,7 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 	if err != nil {
 		return err
 	}
-	format, formatFields, err := parseConditionalFormat(c.FormatJSON, c.FormatFields)
+	format, formatFields, err := parseConditionalFormat(c.FormatJSON, c.FormatFields, stdinReader(ctx))
 	if err != nil {
 		return err
 	}
@@ -262,8 +263,8 @@ type conditionalRuleItem struct {
 	Rule       any      `json:"rule,omitempty"`
 }
 
-func parseConditionalFormat(formatJSON, formatMask string) (*sheets.CellFormat, string, error) {
-	b, err := resolveInlineOrFileBytes(formatJSON)
+func parseConditionalFormat(formatJSON, formatMask string, input io.Reader) (*sheets.CellFormat, string, error) {
+	b, err := resolveInlineOrFileBytes(formatJSON, input)
 	if err != nil {
 		return nil, "", usagef("read --format-json: %v", err)
 	}

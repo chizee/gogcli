@@ -152,7 +152,7 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty name")
 	}
 
-	columns, err := parseSheetsTableColumnsJSON(c.ColumnsJSON)
+	columns, err := parseSheetsTableColumnsJSON(c.ColumnsJSON, stdinReader(ctx))
 	if err != nil {
 		return err
 	}

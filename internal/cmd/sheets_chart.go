@@ -198,7 +198,7 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("--height must be greater than 0")
 	}
 
-	specBytes, err := resolveInlineOrFileBytes(c.SpecJSON)
+	specBytes, err := resolveInlineOrFileBytes(c.SpecJSON, stdinReader(ctx))
 	if err != nil {
 		return usagef("read --spec-json: %v", err)
 	}
@@ -302,7 +302,7 @@ func (c *SheetsChartUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("chartId must be greater than 0")
 	}
 
-	specBytes, err := resolveInlineOrFileBytes(c.SpecJSON)
+	specBytes, err := resolveInlineOrFileBytes(c.SpecJSON, stdinReader(ctx))
 	if err != nil {
 		return usagef("read --spec-json: %v", err)
 	}

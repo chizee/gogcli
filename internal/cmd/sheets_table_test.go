@@ -118,7 +118,7 @@ func TestSheetsTableColumnTypeAliasesFailFast(t *testing.T) {
 	}
 	for input, want := range tests {
 		t.Run(input, func(t *testing.T) {
-			_, err := parseSheetsTableColumnsJSON(`[{"columnName":"Value","columnType":"` + input + `"}]`)
+			_, err := parseSheetsTableColumnsJSON(`[{"columnName":"Value","columnType":"`+input+`"}]`, strings.NewReader(""))
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -141,7 +141,7 @@ func TestSheetsTableColumnsJSONValidationIsUsage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseSheetsTableColumnsJSON(tt.input)
+			_, err := parseSheetsTableColumnsJSON(tt.input, strings.NewReader(""))
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("expected %q error, got %v", tt.want, err)
 			}
@@ -404,7 +404,7 @@ func TestSheetsTableAppendValueValidationIsUsage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseSheetsAppendValues(tt.valuesJSON, tt.values)
+			_, err := parseSheetsAppendValues(tt.valuesJSON, tt.values, strings.NewReader(""))
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("expected %q error, got %v", tt.want, err)
 			}

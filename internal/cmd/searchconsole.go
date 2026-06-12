@@ -141,7 +141,7 @@ func (c *SearchConsoleQueryCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	plan, err := c.plan()
+	plan, err := c.plan(stdinReader(ctx))
 	if err != nil {
 		return err
 	}

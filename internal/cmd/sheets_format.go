@@ -36,7 +36,7 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	var format sheets.CellFormat
-	b, err := resolveInlineOrFileBytes(c.FormatJSON)
+	b, err := resolveInlineOrFileBytes(c.FormatJSON, stdinReader(ctx))
 	if err != nil {
 		return usagef("read --format-json: %v", err)
 	}

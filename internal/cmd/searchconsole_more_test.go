@@ -23,7 +23,7 @@ func TestSearchConsoleQueryCmd_BuildRequest(t *testing.T) {
 		Filter:      []string{"query:contains:buy shoes", "country:equals:usa"},
 	}
 
-	req, err := cmd.buildRequest()
+	req, err := cmd.buildRequest(strings.NewReader(""))
 	if err != nil {
 		t.Fatalf("buildRequest: %v", err)
 	}
@@ -52,36 +52,35 @@ func TestSearchConsoleQueryCmd_BuildRequest(t *testing.T) {
 }
 
 func TestSearchConsoleQueryCmd_BuildRequestFromJSON(t *testing.T) {
-	withStdin(t, `{
+	input := `{
 		"startDate":"2026-02-01",
 		"endDate":"2026-02-10",
 		"rowLimit":50,
 		"searchType":"IMAGE",
 		"dimensions":["QUERY","search_appearance"],
 		"dimensionFilterGroups":[{"groupType":"AND","filters":[{"dimension":"PAGE","operator":"NOT_CONTAINS","expression":"draft"}]}]
-	}`, func() {
-		cmd := &SearchConsoleQueryCmd{Request: "-"}
-		req, err := cmd.buildRequest()
-		if err != nil {
-			t.Fatalf("buildRequest: %v", err)
-		}
-		if req.RowLimit != 50 {
-			t.Fatalf("unexpected rowLimit: %d", req.RowLimit)
-		}
-		if req.Type != "IMAGE" || req.SearchType != "IMAGE" {
-			t.Fatalf("unexpected type fields: type=%q searchType=%q", req.Type, req.SearchType)
-		}
-		if len(req.Dimensions) != 2 || req.Dimensions[0] != "QUERY" || req.Dimensions[1] != "SEARCH_APPEARANCE" {
-			t.Fatalf("unexpected dimensions: %#v", req.Dimensions)
-		}
-		if len(req.DimensionFilterGroups) != 1 || req.DimensionFilterGroups[0].GroupType != "AND" {
-			t.Fatalf("unexpected filter groups: %#v", req.DimensionFilterGroups)
-		}
-		filter := req.DimensionFilterGroups[0].Filters[0]
-		if filter.Dimension != "PAGE" || filter.Operator != "NOT_CONTAINS" || filter.Expression != "draft" {
-			t.Fatalf("unexpected filter: %#v", filter)
-		}
-	})
+	}`
+	cmd := &SearchConsoleQueryCmd{Request: "-"}
+	req, err := cmd.buildRequest(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("buildRequest: %v", err)
+	}
+	if req.RowLimit != 50 {
+		t.Fatalf("unexpected rowLimit: %d", req.RowLimit)
+	}
+	if req.Type != "IMAGE" || req.SearchType != "IMAGE" {
+		t.Fatalf("unexpected type fields: type=%q searchType=%q", req.Type, req.SearchType)
+	}
+	if len(req.Dimensions) != 2 || req.Dimensions[0] != "QUERY" || req.Dimensions[1] != "SEARCH_APPEARANCE" {
+		t.Fatalf("unexpected dimensions: %#v", req.Dimensions)
+	}
+	if len(req.DimensionFilterGroups) != 1 || req.DimensionFilterGroups[0].GroupType != "AND" {
+		t.Fatalf("unexpected filter groups: %#v", req.DimensionFilterGroups)
+	}
+	filter := req.DimensionFilterGroups[0].Filters[0]
+	if filter.Dimension != "PAGE" || filter.Operator != "NOT_CONTAINS" || filter.Expression != "draft" {
+		t.Fatalf("unexpected filter: %#v", filter)
+	}
 }
 
 func TestExecute_SearchConsoleSitesGet_JSON(t *testing.T) {

@@ -166,7 +166,7 @@ func TestParseSheetsBatchUpdateDataRejectsInvalidPayloads(t *testing.T) {
 		{name: "empty values", in: `[{"range":"Sheet1!A1","values":[]}]`, want: "empty values"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseSheetsBatchUpdateData(tc.in)
+			_, err := parseSheetsBatchUpdateData(tc.in, strings.NewReader(""))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want substring %q", err, tc.want)
 			}

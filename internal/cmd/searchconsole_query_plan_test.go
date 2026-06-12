@@ -19,7 +19,7 @@ func TestSearchConsoleQueryCmd_Plan(t *testing.T) {
 		Max:        250,
 		Offset:     10,
 	}
-	plan, err := cmd.plan()
+	plan, err := cmd.plan(strings.NewReader(""))
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestSearchConsoleQueryCmd_Plan(t *testing.T) {
 func TestSearchConsoleQueryCmd_PlanValidatesSiteURL(t *testing.T) {
 	t.Parallel()
 
-	_, err := (&SearchConsoleQueryCmd{}).plan()
+	_, err := (&SearchConsoleQueryCmd{}).plan(strings.NewReader(""))
 	if err == nil || !strings.Contains(err.Error(), "empty siteUrl") {
 		t.Fatalf("plan() error = %v, want empty siteUrl", err)
 	}

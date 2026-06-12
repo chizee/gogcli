@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"google.golang.org/api/sheets/v4"
@@ -31,7 +32,7 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty tableId")
 	}
 
-	values, err := parseSheetsAppendValues(c.ValuesJSON, c.Values)
+	values, err := parseSheetsAppendValues(c.ValuesJSON, c.Values, stdinReader(ctx))
 	if err != nil {
 		return err
 	}
@@ -105,10 +106,10 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 	return nil
 }
 
-func parseSheetsAppendValues(valuesJSON string, values []string) ([][]interface{}, error) {
+func parseSheetsAppendValues(valuesJSON string, values []string, input io.Reader) ([][]interface{}, error) {
 	switch {
 	case strings.TrimSpace(valuesJSON) != "":
-		b, err := resolveInlineOrFileBytes(valuesJSON)
+		b, err := resolveInlineOrFileBytes(valuesJSON, input)
 		if err != nil {
 			return nil, usagef("read --values-json: %v", err)
 		}

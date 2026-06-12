@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -28,12 +29,12 @@ type searchConsoleQueryPlan struct {
 	Request *searchconsoleapi.SearchAnalyticsQueryRequest
 }
 
-func (c *SearchConsoleQueryCmd) plan() (searchConsoleQueryPlan, error) {
+func (c *SearchConsoleQueryCmd) plan(input io.Reader) (searchConsoleQueryPlan, error) {
 	siteURL := strings.TrimSpace(c.SiteURL)
 	if siteURL == "" {
 		return searchConsoleQueryPlan{}, usage("empty siteUrl")
 	}
-	request, err := c.buildRequest()
+	request, err := c.buildRequest(input)
 	if err != nil {
 		return searchConsoleQueryPlan{}, err
 	}
@@ -53,10 +54,10 @@ func (p searchConsoleQueryPlan) queryType() string {
 	return p.Request.SearchType
 }
 
-func (c *SearchConsoleQueryCmd) buildRequest() (*searchconsoleapi.SearchAnalyticsQueryRequest, error) {
+func (c *SearchConsoleQueryCmd) buildRequest(input io.Reader) (*searchconsoleapi.SearchAnalyticsQueryRequest, error) {
 	requestSpec := strings.TrimSpace(c.Request)
 	if requestSpec != "" {
-		return buildSearchConsoleRequestFromSpec(requestSpec)
+		return buildSearchConsoleRequestFromSpec(requestSpec, input)
 	}
 
 	from, err := parseSearchConsoleDate(c.From, "--from")
@@ -131,8 +132,8 @@ func (c *SearchConsoleQueryCmd) buildRequest() (*searchconsoleapi.SearchAnalytic
 	return req, nil
 }
 
-func buildSearchConsoleRequestFromSpec(spec string) (*searchconsoleapi.SearchAnalyticsQueryRequest, error) {
-	data, err := readSearchConsoleRequestBytes(spec)
+func buildSearchConsoleRequestFromSpec(spec string, input io.Reader) (*searchconsoleapi.SearchAnalyticsQueryRequest, error) {
+	data, err := readSearchConsoleRequestBytes(spec, input)
 	if err != nil {
 		return nil, err
 	}
@@ -225,11 +226,11 @@ func buildSearchConsoleRequestFromSpec(spec string) (*searchconsoleapi.SearchAna
 	return &req, nil
 }
 
-func readSearchConsoleRequestBytes(spec string) ([]byte, error) {
+func readSearchConsoleRequestBytes(spec string, input io.Reader) ([]byte, error) {
 	spec = strings.TrimSpace(spec)
 	switch {
 	case spec == "", spec == "-", strings.HasPrefix(spec, "@"), strings.HasPrefix(spec, "{"), strings.HasPrefix(spec, "["):
-		return resolveInlineOrFileBytes(spec)
+		return resolveInlineOrFileBytes(spec, input)
 	default:
 		path, err := config.ExpandPath(spec)
 		if err != nil {

@@ -41,7 +41,7 @@ func (c *SheetsBandingSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	rowProps, colProps, err := bandingProperties(c.RowPropertiesJSON, c.ColumnPropertiesJSON)
+	rowProps, colProps, err := bandingProperties(c.RowPropertiesJSON, c.ColumnPropertiesJSON, stdinReader(ctx))
 	if err != nil {
 		return err
 	}
@@ -259,12 +259,12 @@ type bandingItem struct {
 	ColumnProperties *sheets.BandingProperties `json:"columnProperties,omitempty"`
 }
 
-func bandingProperties(rowJSON, columnJSON string) (*sheets.BandingProperties, *sheets.BandingProperties, error) {
-	rowProps, err := parseBandingProperties(rowJSON, defaultRowBandingProperties())
+func bandingProperties(rowJSON, columnJSON string, input io.Reader) (*sheets.BandingProperties, *sheets.BandingProperties, error) {
+	rowProps, err := parseBandingProperties(rowJSON, defaultRowBandingProperties(), input)
 	if err != nil {
 		return nil, nil, usagef("invalid --row-properties-json: %v", err)
 	}
-	colProps, err := parseBandingProperties(columnJSON, nil)
+	colProps, err := parseBandingProperties(columnJSON, nil, input)
 	if err != nil {
 		return nil, nil, usagef("invalid --column-properties-json: %v", err)
 	}
@@ -274,11 +274,11 @@ func bandingProperties(rowJSON, columnJSON string) (*sheets.BandingProperties, *
 	return rowProps, colProps, nil
 }
 
-func parseBandingProperties(raw string, fallback *sheets.BandingProperties) (*sheets.BandingProperties, error) {
+func parseBandingProperties(raw string, fallback *sheets.BandingProperties, input io.Reader) (*sheets.BandingProperties, error) {
 	if strings.TrimSpace(raw) == "" {
 		return fallback, nil
 	}
-	b, err := resolveInlineOrFileBytes(raw)
+	b, err := resolveInlineOrFileBytes(raw, input)
 	if err != nil {
 		return nil, err
 	}

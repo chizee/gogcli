@@ -18,8 +18,8 @@ type sheetsTableColumnInput struct {
 	DataValidationRule *sheets.TableColumnDataValidationRule `json:"dataValidationRule,omitempty"`
 }
 
-func parseSheetsTableColumnsJSON(input string) ([]*sheets.TableColumnProperties, error) {
-	b, err := resolveInlineOrFileBytes(input)
+func parseSheetsTableColumnsJSON(spec string, input io.Reader) ([]*sheets.TableColumnProperties, error) {
+	b, err := resolveInlineOrFileBytes(spec, input)
 	if err != nil {
 		return nil, usagef("read --columns-json: %v", err)
 	}

@@ -193,7 +193,7 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	switch {
 	case strings.TrimSpace(c.ValuesJSON) != "":
-		b, err := resolveInlineOrFileBytes(c.ValuesJSON)
+		b, err := resolveInlineOrFileBytes(c.ValuesJSON, stdinReader(ctx))
 		if err != nil {
 			return usagef("read --values-json: %v", err)
 		}
@@ -299,7 +299,7 @@ func (c *SheetsBatchUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty spreadsheetId")
 	}
 
-	data, err := parseSheetsBatchUpdateData(c.DataJSON)
+	data, err := parseSheetsBatchUpdateData(c.DataJSON, stdinReader(ctx))
 	if err != nil {
 		return err
 	}
@@ -361,11 +361,11 @@ func (c *SheetsBatchUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	return nil
 }
 
-func parseSheetsBatchUpdateData(dataJSON string) ([]*sheets.ValueRange, error) {
+func parseSheetsBatchUpdateData(dataJSON string, input io.Reader) ([]*sheets.ValueRange, error) {
 	if strings.TrimSpace(dataJSON) == "" {
 		return nil, usage("empty data-json")
 	}
-	b, err := resolveInlineOrFileBytes(dataJSON)
+	b, err := resolveInlineOrFileBytes(dataJSON, input)
 	if err != nil {
 		return nil, usagef("read --data-json: %v", err)
 	}
@@ -417,7 +417,7 @@ func (c *SheetsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	switch {
 	case strings.TrimSpace(c.ValuesJSON) != "":
-		b, err := resolveInlineOrFileBytes(c.ValuesJSON)
+		b, err := resolveInlineOrFileBytes(c.ValuesJSON, stdinReader(ctx))
 		if err != nil {
 			return usagef("read --values-json: %v", err)
 		}
