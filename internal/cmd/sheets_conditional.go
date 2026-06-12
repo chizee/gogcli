@@ -2,15 +2,15 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	"google.golang.org/api/sheets/v4"
 
 	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/sheetsa1"
+	"github.com/steipete/gogcli/internal/sheetsconditional"
 	"github.com/steipete/gogcli/internal/sheetsformat"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -53,9 +53,9 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 	if err != nil {
 		return err
 	}
-	conditionType, values, err := conditionalCondition(strings.TrimSpace(c.Type), strings.TrimSpace(c.Expr))
+	conditionType, values, err := sheetsconditional.BuildCondition(strings.TrimSpace(c.Type), strings.TrimSpace(c.Expr))
 	if err != nil {
-		return err
+		return sheetsConditionalPlannerError(err)
 	}
 
 	if dryErr := dryRunExit(ctx, flags, "sheets.conditional-format.add", map[string]any{
@@ -86,21 +86,11 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	req := &sheets.BatchUpdateSpreadsheetRequest{Requests: []*sheets.Request{{
-		AddConditionalFormatRule: &sheets.AddConditionalFormatRuleRequest{
-			Rule: &sheets.ConditionalFormatRule{
-				BooleanRule: &sheets.BooleanRule{
-					Condition: &sheets.BooleanCondition{
-						Type:   conditionType,
-						Values: values,
-					},
-					Format: format,
-				},
-				Ranges: []*sheets.GridRange{gridRange},
-			},
-			Index: c.Index,
+	req := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			sheetsconditional.BuildAddRequest(gridRange, conditionType, values, format, c.Index),
 		},
-	}}}
+	}
 
 	if err := applySheetsBatchUpdate(ctx, svc, spreadsheetID, req); err != nil {
 		return err
@@ -146,7 +136,7 @@ func (c *SheetsConditionalListCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	items := conditionalRuleItems(resp, strings.TrimSpace(c.Sheet))
+	items := sheetsconditional.RuleItems(resp, strings.TrimSpace(c.Sheet))
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"rules": items})
 	}
@@ -186,8 +176,8 @@ func (c *SheetsConditionalClearCmd) Run(ctx context.Context, flags *RootFlags) e
 	if c.All && strings.TrimSpace(c.Index) != "" {
 		return usage("use either --index or --all, not both")
 	}
-	if err := validateConditionalClearIndex(strings.TrimSpace(c.Index)); err != nil {
-		return err
+	if err := sheetsconditional.ValidateClearIndex(strings.TrimSpace(c.Index)); err != nil {
+		return sheetsConditionalPlannerError(err)
 	}
 
 	if flags != nil && flags.DryRun {
@@ -214,14 +204,14 @@ func (c *SheetsConditionalClearCmd) Run(ctx context.Context, flags *RootFlags) e
 	if err != nil {
 		return err
 	}
-	sheetID, count, err := conditionalSheetRuleCount(resp, sheetName)
+	sheetID, count, err := sheetsconditional.SheetRuleCount(resp, sheetName)
 	if err != nil {
-		return err
+		return sheetsConditionalPlannerError(err)
 	}
 
-	requests, err := conditionalDeleteRequests(sheetID, count, strings.TrimSpace(c.Index), c.All)
+	requests, err := sheetsconditional.BuildDeleteRequests(sheetID, count, strings.TrimSpace(c.Index), c.All)
 	if err != nil {
-		return err
+		return sheetsConditionalPlannerError(err)
 	}
 	if len(requests) == 0 {
 		if outfmt.IsJSON(ctx) {
@@ -255,16 +245,6 @@ func (c *SheetsConditionalClearCmd) Run(ctx context.Context, flags *RootFlags) e
 	return nil
 }
 
-type conditionalRuleItem struct {
-	SheetID    int64    `json:"sheetId"`
-	SheetTitle string   `json:"sheetTitle"`
-	Index      int      `json:"index"`
-	Type       string   `json:"type,omitempty"`
-	Values     []string `json:"values,omitempty"`
-	Ranges     []string `json:"ranges,omitempty"`
-	Rule       any      `json:"rule,omitempty"`
-}
-
 func parseConditionalFormat(formatJSON, formatMask string, input io.Reader) (*sheets.CellFormat, string, error) {
 	b, err := resolveInlineOrFileBytes(formatJSON, input)
 	if err != nil {
@@ -289,136 +269,11 @@ func parseConditionalFormat(formatJSON, formatMask string, input io.Reader) (*sh
 	return &format, formatFields, nil
 }
 
-func conditionalCondition(kind, expr string) (string, []*sheets.ConditionValue, error) {
-	conditionType, valueCount, err := conditionalConditionType(kind)
-	if err != nil {
-		return "", nil, err
+func sheetsConditionalPlannerError(err error) error {
+	var validationErr sheetsconditional.ValidationError
+	if errors.As(err, &validationErr) {
+		return usage(validationErr.Error())
 	}
-	if valueCount == 0 {
-		if expr != "" {
-			return "", nil, usagef("--expr is not used with --type %s", kind)
-		}
-		return conditionType, nil, nil
-	}
-	if expr == "" {
-		return "", nil, usage("--expr is required for this conditional format type")
-	}
-	return conditionType, []*sheets.ConditionValue{{UserEnteredValue: expr}}, nil
-}
 
-func conditionalConditionType(kind string) (string, int, error) {
-	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "text-eq":
-		return "TEXT_EQ", 1, nil
-	case "text-contains":
-		return "TEXT_CONTAINS", 1, nil
-	case "text-starts-with":
-		return "TEXT_STARTS_WITH", 1, nil
-	case "text-ends-with":
-		return "TEXT_ENDS_WITH", 1, nil
-	case "number-eq":
-		return "NUMBER_EQ", 1, nil
-	case "number-gt":
-		return "NUMBER_GREATER", 1, nil
-	case "number-gte":
-		return "NUMBER_GREATER_THAN_EQ", 1, nil
-	case "number-lt":
-		return "NUMBER_LESS", 1, nil
-	case "number-lte":
-		return "NUMBER_LESS_THAN_EQ", 1, nil
-	case "blank":
-		return "BLANK", 0, nil
-	case "not-blank":
-		return "NOT_BLANK", 0, nil
-	case "custom-formula":
-		return "CUSTOM_FORMULA", 1, nil
-	default:
-		return "", 0, usagef("unsupported --type %q", kind)
-	}
-}
-
-func conditionalRuleItems(resp *sheets.Spreadsheet, onlySheet string) []conditionalRuleItem {
-	items := make([]conditionalRuleItem, 0)
-	if resp == nil {
-		return items
-	}
-	for _, sheet := range resp.Sheets {
-		if sheet == nil || sheet.Properties == nil {
-			continue
-		}
-		sheetTitle := sheet.Properties.Title
-		if onlySheet != "" && sheetTitle != onlySheet {
-			continue
-		}
-		for idx, rule := range sheet.ConditionalFormats {
-			item := conditionalRuleItem{
-				SheetID:    sheet.Properties.SheetId,
-				SheetTitle: sheetTitle,
-				Index:      idx,
-				Rule:       rule,
-			}
-			if rule != nil {
-				for _, gr := range rule.Ranges {
-					item.Ranges = append(item.Ranges, sheetsa1.FormatGridRange(sheetTitle, gr))
-				}
-				if rule.BooleanRule != nil && rule.BooleanRule.Condition != nil {
-					item.Type = rule.BooleanRule.Condition.Type
-					for _, value := range rule.BooleanRule.Condition.Values {
-						if value != nil {
-							item.Values = append(item.Values, value.UserEnteredValue)
-						}
-					}
-				}
-			}
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func conditionalSheetRuleCount(resp *sheets.Spreadsheet, sheetName string) (int64, int, error) {
-	if resp == nil {
-		return 0, 0, fmt.Errorf("empty spreadsheet metadata")
-	}
-	for _, sheet := range resp.Sheets {
-		if sheet == nil || sheet.Properties == nil || sheet.Properties.Title != sheetName {
-			continue
-		}
-		return sheet.Properties.SheetId, len(sheet.ConditionalFormats), nil
-	}
-	return 0, 0, usagef("unknown sheet %q", sheetName)
-}
-
-func conditionalDeleteRequests(sheetID int64, count int, indexRaw string, all bool) ([]*sheets.Request, error) {
-	if all {
-		requests := make([]*sheets.Request, 0, count)
-		for i := count - 1; i >= 0; i-- {
-			requests = append(requests, conditionalDeleteRequest(sheetID, int64(i)))
-		}
-		return requests, nil
-	}
-	idx, err := strconv.Atoi(indexRaw)
-	if err != nil || idx < 0 {
-		return nil, usage("invalid --index")
-	}
-	if idx >= count {
-		return nil, usagef("--index %d out of range; sheet has %d rules", idx, count)
-	}
-	return []*sheets.Request{conditionalDeleteRequest(sheetID, int64(idx))}, nil
-}
-
-func validateConditionalClearIndex(indexRaw string) error {
-	indexRaw = strings.TrimSpace(indexRaw)
-	if indexRaw == "" {
-		return nil
-	}
-	idx, err := strconv.Atoi(indexRaw)
-	if err != nil || idx < 0 {
-		return usage("--index must be a non-negative integer")
-	}
-	return nil
-}
-
-func conditionalDeleteRequest(sheetID, index int64) *sheets.Request {
-	return &sheets.Request{DeleteConditionalFormatRule: &sheets.DeleteConditionalFormatRuleRequest{SheetId: sheetID, Index: index}}
+	return err
 }
