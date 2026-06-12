@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -8,12 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"google.golang.org/api/option"
-	"google.golang.org/api/sheets/v4"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 // chartRecorder captures batchUpdate requests.
@@ -162,46 +157,36 @@ func chartHandler(recorder *chartRecorder) http.Handler {
 
 func newChartTestContext(t *testing.T, recorder *chartRecorder) (context.Context, *RootFlags, func()) {
 	t.Helper()
-
-	origNew := newSheetsService
-	srv := httptest.NewServer(chartHandler(recorder))
-
-	svc, err := sheets.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newSheetsService = func(context.Context, string) (*sheets.Service, error) { return svc, nil }
-
-	flags := &RootFlags{Account: "a@b.com"}
-	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := ui.WithUI(context.Background(), u)
-
-	cleanup := func() {
-		srv.Close()
-		newSheetsService = origNew
-	}
+	ctx, flags, _, cleanup := newChartOutputTestContext(t, recorder, false)
 	return ctx, flags, cleanup
+}
+
+func newChartOutputTestContext(t *testing.T, recorder *chartRecorder, jsonOutput bool) (context.Context, *RootFlags, *bytes.Buffer, func()) {
+	t.Helper()
+
+	srv := httptest.NewServer(chartHandler(recorder))
+	svc := newSheetsServiceFromServer(t, srv)
+	output := &bytes.Buffer{}
+	var ctx context.Context
+	if jsonOutput {
+		ctx = newCmdRuntimeJSONOutputContext(t, output, io.Discard)
+	} else {
+		ctx = newCmdRuntimeOutputContext(t, output, io.Discard)
+	}
+	ctx = withSheetsTestService(ctx, svc)
+	flags := &RootFlags{Account: "a@b.com"}
+	return ctx, flags, output, srv.Close
 }
 
 func TestSheetsChartList_JSON(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartListCmd{}, []string{"s1"}, ctx, flags); err != nil {
-			t.Fatalf("chart list: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartListCmd{}, []string{"s1"}, ctx, flags); err != nil {
+		t.Fatalf("chart list: %v", err)
+	}
+	out := output.String()
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -230,38 +215,23 @@ func TestSheetsChartList_JSON(t *testing.T) {
 
 func TestSheetsChartList_Text(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, _, cleanup := newChartOutputTestContext(t, recorder, false)
 	defer cleanup()
 
-	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx = ui.WithUI(ctx, u)
-
-		if err := runKong(t, &SheetsChartListCmd{}, []string{"s1"}, ctx, flags); err != nil {
-			t.Fatalf("chart list: %v", err)
-		}
-	})
-
-	// Text output goes through tableWriter which writes to stdout via the writer.
-	// Just ensure no error occurred; the test server returns charts.
-	_ = out
+	if err := runKong(t, &SheetsChartListCmd{}, []string{"s1"}, ctx, flags); err != nil {
+		t.Fatalf("chart list: %v", err)
+	}
 }
 
 func TestSheetsChartList_JSONEmptyArray(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartListCmd{}, []string{"empty"}, ctx, flags); err != nil {
-			t.Fatalf("chart list: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartListCmd{}, []string{"empty"}, ctx, flags); err != nil {
+		t.Fatalf("chart list: %v", err)
+	}
+	out := output.String()
 
 	var result struct {
 		Charts []any `json:"charts"`
@@ -279,16 +249,13 @@ func TestSheetsChartList_JSONEmptyArray(t *testing.T) {
 
 func TestSheetsChartGet_JSON(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartGetCmd{}, []string{"s1", "100"}, ctx, flags); err != nil {
-			t.Fatalf("chart get: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartGetCmd{}, []string{"s1", "100"}, ctx, flags); err != nil {
+		t.Fatalf("chart get: %v", err)
+	}
+	out := output.String()
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -310,7 +277,7 @@ func TestSheetsChartGet_JSON(t *testing.T) {
 
 func TestSheetsChartGet_NotFound(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, _, cleanup := newChartOutputTestContext(t, recorder, false)
 	defer cleanup()
 
 	err := runKong(t, &SheetsChartGetCmd{}, []string{"s1", "999999"}, ctx, flags)

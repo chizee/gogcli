@@ -8,26 +8,21 @@ import (
 	"testing"
 
 	"google.golang.org/api/sheets/v4"
-
-	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 func TestSheetsChartCreate_JSON(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
-
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
 	specJSON := `{"title":"Test Chart","basicChart":{"chartType":"BAR"}}`
 
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartCreateCmd{}, []string{
-			"s1", "--spec-json", specJSON,
-		}, ctx, flags); err != nil {
-			t.Fatalf("chart create: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartCreateCmd{}, []string{
+		"s1", "--spec-json", specJSON,
+	}, ctx, flags); err != nil {
+		t.Fatalf("chart create: %v", err)
+	}
+	out := output.String()
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -55,20 +50,17 @@ func TestSheetsChartCreate_JSON(t *testing.T) {
 
 func TestSheetsChartCreate_WithAnchor(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
-
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
 	specJSON := `{"spec":{"title":"Anchored Chart","basicChart":{"chartType":"LINE"}}}`
 
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartCreateCmd{}, []string{
-			"s1", "--spec-json", specJSON, "--sheet", "Sheet1", "--anchor", "E10",
-		}, ctx, flags); err != nil {
-			t.Fatalf("chart create: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartCreateCmd{}, []string{
+		"s1", "--spec-json", specJSON, "--sheet", "Sheet1", "--anchor", "E10",
+	}, ctx, flags); err != nil {
+		t.Fatalf("chart create: %v", err)
+	}
+	out := output.String()
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -120,17 +112,13 @@ func TestSheetsChartCreate_RemapsSourceRangeWithoutAnchor(t *testing.T) {
 	ctx, flags, cleanup := newChartTestContext(t, recorder)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
 	specJSON := `{"title":"Source Chart","basicChart":{"chartType":"LINE","domains":[{"domain":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":0,"endRowIndex":3}]}}}],"series":[{"series":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":0,"endRowIndex":3}]}}}]}}`
 
-	captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartCreateCmd{}, []string{
-			"s1", "--spec-json", specJSON,
-		}, ctx, flags); err != nil {
-			t.Fatalf("chart create: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartCreateCmd{}, []string{
+		"s1", "--spec-json", specJSON,
+	}, ctx, flags); err != nil {
+		t.Fatalf("chart create: %v", err)
+	}
 
 	addChart, ok := recorder.requests[0]["addChart"].(map[string]any)
 	if !ok {
@@ -149,17 +137,13 @@ func TestSheetsChartCreate_PreservesSheetIDZeroWhenSpreadsheetHasZero(t *testing
 	ctx, flags, cleanup := newChartTestContext(t, recorder)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
 	specJSON := `{"title":"Zero Chart","basicChart":{"chartType":"LINE","domains":[{"domain":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":0,"endRowIndex":3}]}}}],"series":[{"series":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":0,"endRowIndex":3}]}}}]}}`
 
-	captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartCreateCmd{}, []string{
-			"zero", "--spec-json", specJSON, "--sheet", "Sheet1", "--anchor", "E10",
-		}, ctx, flags); err != nil {
-			t.Fatalf("chart create: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartCreateCmd{}, []string{
+		"zero", "--spec-json", specJSON, "--sheet", "Sheet1", "--anchor", "E10",
+	}, ctx, flags); err != nil {
+		t.Fatalf("chart create: %v", err)
+	}
 
 	addChart, ok := recorder.requests[0]["addChart"].(map[string]any)
 	if !ok {
@@ -182,20 +166,17 @@ func TestSheetsChartCreate_PreservesSheetIDZeroWhenSpreadsheetHasZero(t *testing
 
 func TestSheetsChartUpdate_JSON(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, flags, cleanup := newChartTestContext(t, recorder)
+	ctx, flags, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
-
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
 	specJSON := `{"title":"Updated Title","basicChart":{"chartType":"COLUMN","domains":[{"domain":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":1,"endRowIndex":4}]}}}],"series":[{"series":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":1,"endRowIndex":4}]}}}]}}`
 
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartUpdateCmd{}, []string{
-			"s1", "100", "--spec-json", specJSON,
-		}, ctx, flags); err != nil {
-			t.Fatalf("chart update: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartUpdateCmd{}, []string{
+		"s1", "100", "--spec-json", specJSON,
+	}, ctx, flags); err != nil {
+		t.Fatalf("chart update: %v", err)
+	}
+	out := output.String()
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -229,17 +210,13 @@ func TestSheetsChartUpdate_PreservesSheetIDZeroWhenSpreadsheetHasZero(t *testing
 	ctx, flags, cleanup := newChartTestContext(t, recorder)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
 	specJSON := `{"title":"Updated Title","basicChart":{"chartType":"COLUMN","domains":[{"domain":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":1,"endRowIndex":4}]}}}],"series":[{"series":{"sourceRange":{"sources":[{"sheetId":0,"startRowIndex":1,"endRowIndex":4}]}}}]}}`
 
-	captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartUpdateCmd{}, []string{
-			"zero", "100", "--spec-json", specJSON,
-		}, ctx, flags); err != nil {
-			t.Fatalf("chart update: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartUpdateCmd{}, []string{
+		"zero", "100", "--spec-json", specJSON,
+	}, ctx, flags); err != nil {
+		t.Fatalf("chart update: %v", err)
+	}
 
 	updateSpec, ok := recorder.requests[0]["updateChartSpec"].(map[string]any)
 	if !ok {
@@ -310,17 +287,15 @@ func basicChartDomainSource(t *testing.T, spec map[string]any) map[string]any {
 
 func TestSheetsChartDelete_JSON(t *testing.T) {
 	recorder := &chartRecorder{}
-	ctx, _, cleanup := newChartTestContext(t, recorder)
+	ctx, _, output, cleanup := newChartOutputTestContext(t, recorder, true)
 	defer cleanup()
 
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 	flagsForce := &RootFlags{Account: "a@b.com", Force: true}
 
-	out := captureStdout(t, func() {
-		if err := runKong(t, &SheetsChartDeleteCmd{}, []string{"s1", "100"}, ctx, flagsForce); err != nil {
-			t.Fatalf("chart delete: %v", err)
-		}
-	})
+	if err := runKong(t, &SheetsChartDeleteCmd{}, []string{"s1", "100"}, ctx, flagsForce); err != nil {
+		t.Fatalf("chart delete: %v", err)
+	}
+	out := output.String()
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {

@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -87,7 +86,7 @@ func (c *SheetsChartListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"charts": items})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"charts": items})
 	}
 
 	if len(items) == 0 {
@@ -147,7 +146,7 @@ func (c *SheetsChartGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(ctx, os.Stdout, ch)
+				return outfmt.WriteJSON(ctx, stdoutWriter(ctx), ch)
 			}
 
 			// Text mode: print key fields.
@@ -274,7 +273,7 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"spreadsheetId": spreadsheetID,
 			"chartId":       chartID,
 		})
@@ -355,7 +354,7 @@ func (c *SheetsChartUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"spreadsheetId": spreadsheetID,
 			"chartId":       c.ChartID,
 		})
@@ -415,7 +414,7 @@ func (c *SheetsChartDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"spreadsheetId": spreadsheetID,
 			"chartId":       c.ChartID,
 		})
