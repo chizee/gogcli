@@ -39,9 +39,11 @@ func withDriveTestServiceFactory(ctx context.Context, factory app.DriveServiceFa
 	return app.WithRuntime(ctx, runtime)
 }
 
-func stubDriveServiceForTest(t *testing.T, svc *drive.Service) {
+func executeWithDriveTestService(t *testing.T, args []string, svc *drive.Service) executeTestResult {
 	t.Helper()
-	stubGoogleTestService(t, &newDriveService, svc)
+	return executeWithTestRuntime(t, args, &app.Runtime{Services: app.Services{
+		Drive: stubDriveService(svc),
+	}})
 }
 
 func newDriveMetadataTestService(t *testing.T, mimeType string) (*drive.Service, func()) {

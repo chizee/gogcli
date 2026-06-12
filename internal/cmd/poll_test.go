@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/api/drive/v3"
 )
 
 const pollTestStartToken = "start"
@@ -78,7 +81,6 @@ func TestDriveChangesPollPersistsFilteredBatch(t *testing.T) {
 		}
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "nested", "drive-state.json")
 	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
@@ -92,28 +94,27 @@ func TestDriveChangesPollPersistsFilteredBatch(t *testing.T) {
 		Max:            10,
 		IncludeRemoved: true,
 	}
-	out := captureStdout(t, func() {
-		err := cmd.run(
-			newCmdJSONOutputContext(t, io.Discard, io.Discard),
-			&RootFlags{Account: "a@example.com"},
-			pollRuntime{
-				now: func() time.Time { return now },
-				runHook: func(_ context.Context, _ string, payload any) error {
-					hookCalls++
-					hooked = payload.(driveChangesPollEvent)
-					return nil
-				},
+	var stdout bytes.Buffer
+	err := cmd.run(
+		newDrivePollTestContext(t, svc, &stdout),
+		&RootFlags{Account: "a@example.com"},
+		pollRuntime{
+			now: func() time.Time { return now },
+			runHook: func(_ context.Context, _ string, payload any) error {
+				hookCalls++
+				hooked = payload.(driveChangesPollEvent)
+				return nil
 			},
-		)
-		if err != nil {
-			t.Fatalf("run: %v", err)
-		}
-	})
+		},
+	)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
 
 	if hookCalls != 1 || len(hooked.Changes) != 1 || hooked.Changes[0].FileId != "wanted" {
 		t.Fatalf("hooked = %#v, calls=%d", hooked, hookCalls)
 	}
-	if strings.Count(out, "\n") != 1 || !json.Valid([]byte(out)) {
+	if out := stdout.String(); strings.Count(out, "\n") != 1 || !json.Valid([]byte(out)) {
 		t.Fatalf("expected one NDJSON event, got %q", out)
 	}
 	state, exists, err := readDriveChangesPollState(statePath)
@@ -152,7 +153,6 @@ func TestDriveChangesPollHookFailureRetainsToken(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "drive-state.json")
 	initial := driveChangesPollState{
@@ -171,16 +171,14 @@ func TestDriveChangesPollHookFailureRetainsToken(t *testing.T) {
 		IncludeRemoved: true,
 	}
 	hookErr := errors.New("hook failed")
-	_ = captureStdout(t, func() {
-		err := cmd.run(
-			newCmdJSONOutputContext(t, io.Discard, io.Discard),
-			&RootFlags{Account: "a@example.com"},
-			pollRuntime{runHook: func(context.Context, string, any) error { return hookErr }},
-		)
-		if !errors.Is(err, hookErr) {
-			t.Fatalf("run error = %v, want hook error", err)
-		}
-	})
+	err := cmd.run(
+		newDrivePollTestContext(t, svc, io.Discard),
+		&RootFlags{Account: "a@example.com"},
+		pollRuntime{runHook: func(context.Context, string, any) error { return hookErr }},
+	)
+	if !errors.Is(err, hookErr) {
+		t.Fatalf("run error = %v, want hook error", err)
+	}
 	state, _, err := readDriveChangesPollState(statePath)
 	if err != nil {
 		t.Fatalf("read state: %v", err)
@@ -205,7 +203,6 @@ func TestDocsCommentsPollPersistsWatermarkAndSeenIDs(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "comments-state.json")
 	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
@@ -217,30 +214,29 @@ func TestDocsCommentsPollPersistsWatermarkAndSeenIDs(t *testing.T) {
 		MaxIterations: 1,
 		Max:           10,
 	}
-	out := captureStdout(t, func() {
-		err := cmd.run(
-			newCmdJSONOutputContext(t, io.Discard, io.Discard),
-			&RootFlags{Account: "a@example.com"},
-			pollRuntime{
-				now: func() time.Time { return now },
-				runHook: func(_ context.Context, _ string, payload any) error {
-					hooked = append(hooked, payload.(docsCommentPollEvent).Comment.Id)
-					return nil
-				},
+	var stdout bytes.Buffer
+	err := cmd.run(
+		newDrivePollTestContext(t, svc, &stdout),
+		&RootFlags{Account: "a@example.com"},
+		pollRuntime{
+			now: func() time.Time { return now },
+			runHook: func(_ context.Context, _ string, payload any) error {
+				hooked = append(hooked, payload.(docsCommentPollEvent).Comment.Id)
+				return nil
 			},
-		)
-		if err != nil {
-			t.Fatalf("run: %v", err)
-		}
-	})
+		},
+	)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
 
 	if got := strings.Join(hooked, ","); got != "c1,c2" {
 		t.Fatalf("hook order = %q, want c1,c2", got)
 	}
-	if strings.Count(out, "\n") != 2 {
-		t.Fatalf("expected two NDJSON events, got %q", out)
+	if strings.Count(stdout.String(), "\n") != 2 {
+		t.Fatalf("expected two NDJSON events, got %q", stdout.String())
 	}
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
 		if !json.Valid([]byte(line)) {
 			t.Fatalf("invalid NDJSON line %q", line)
 		}
@@ -270,7 +266,6 @@ func TestDocsCommentsPollSkipsSeenAtInclusiveWatermark(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "comments-state.json")
 	if err := writePollState(statePath, docsCommentsPollState{
@@ -291,21 +286,19 @@ func TestDocsCommentsPollSkipsSeenAtInclusiveWatermark(t *testing.T) {
 		MaxIterations: 1,
 		Max:           10,
 	}
-	_ = captureStdout(t, func() {
-		err := cmd.run(
-			newCmdJSONOutputContext(t, io.Discard, io.Discard),
-			&RootFlags{Account: "a@example.com"},
-			pollRuntime{
-				runHook: func(_ context.Context, _ string, payload any) error {
-					hooked = append(hooked, payload.(docsCommentPollEvent).Comment.Id)
-					return nil
-				},
+	err := cmd.run(
+		newDrivePollTestContext(t, svc, io.Discard),
+		&RootFlags{Account: "a@example.com"},
+		pollRuntime{
+			runHook: func(_ context.Context, _ string, payload any) error {
+				hooked = append(hooked, payload.(docsCommentPollEvent).Comment.Id)
+				return nil
 			},
-		)
-		if err != nil {
-			t.Fatalf("run: %v", err)
-		}
-	})
+		},
+	)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
 	if got := strings.Join(hooked, ","); got != "new-same-time,new-later" {
 		t.Fatalf("hooked = %q", got)
 	}
@@ -330,7 +323,6 @@ func TestDocsCommentsPollAdvancesPastExcludedResolvedComments(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "comments-state.json")
 	if err := writePollState(statePath, docsCommentsPollState{
@@ -349,23 +341,22 @@ func TestDocsCommentsPollAdvancesPastExcludedResolvedComments(t *testing.T) {
 		MaxIterations: 1,
 		Max:           10,
 	}
-	out := captureStdout(t, func() {
-		err := cmd.run(
-			newCmdJSONOutputContext(t, io.Discard, io.Discard),
-			&RootFlags{Account: "a@example.com"},
-			pollRuntime{
-				runHook: func(context.Context, string, any) error {
-					hookCalls++
-					return nil
-				},
+	var stdout bytes.Buffer
+	err := cmd.run(
+		newDrivePollTestContext(t, svc, &stdout),
+		&RootFlags{Account: "a@example.com"},
+		pollRuntime{
+			runHook: func(context.Context, string, any) error {
+				hookCalls++
+				return nil
 			},
-		)
-		if err != nil {
-			t.Fatalf("run: %v", err)
-		}
-	})
-	if out != "" || hookCalls != 0 {
-		t.Fatalf("excluded comment emitted output=%q hooks=%d", out, hookCalls)
+		},
+	)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if stdout.Len() != 0 || hookCalls != 0 {
+		t.Fatalf("excluded comment emitted output=%q hooks=%d", stdout.String(), hookCalls)
 	}
 	state, _, err := readDocsCommentsPollState(statePath)
 	if err != nil {
@@ -384,7 +375,6 @@ func TestDocsCommentsPollHookFailureRetainsWatermark(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "comments-state.json")
 	initial := docsCommentsPollState{
@@ -404,16 +394,14 @@ func TestDocsCommentsPollHookFailureRetainsWatermark(t *testing.T) {
 		MaxIterations: 1,
 		Max:           10,
 	}
-	_ = captureStdout(t, func() {
-		err := cmd.run(
-			newCmdJSONOutputContext(t, io.Discard, io.Discard),
-			&RootFlags{Account: "a@example.com"},
-			pollRuntime{runHook: func(context.Context, string, any) error { return hookErr }},
-		)
-		if !errors.Is(err, hookErr) {
-			t.Fatalf("run error = %v, want hook error", err)
-		}
-	})
+	err := cmd.run(
+		newDrivePollTestContext(t, svc, io.Discard),
+		&RootFlags{Account: "a@example.com"},
+		pollRuntime{runHook: func(context.Context, string, any) error { return hookErr }},
+	)
+	if !errors.Is(err, hookErr) {
+		t.Fatalf("run error = %v, want hook error", err)
+	}
 	state, _, err := readDocsCommentsPollState(statePath)
 	if err != nil {
 		t.Fatalf("read state: %v", err)
@@ -429,4 +417,9 @@ func TestWaitForPollIntervalCanceled(t *testing.T) {
 	if err := waitForPollInterval(ctx, time.Hour); !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context canceled", err)
 	}
+}
+
+func newDrivePollTestContext(t *testing.T, svc *drive.Service, stdout io.Writer) context.Context {
+	t.Helper()
+	return withDriveTestService(newCmdRuntimeJSONOutputContext(t, stdout, io.Discard), svc)
 }

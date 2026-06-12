@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"os"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 )
@@ -22,7 +21,7 @@ func loadPagedItems[T any](page string, all bool, fetch pageFetchFunc[T]) ([]T, 
 }
 
 func writePagedJSONResult(ctx context.Context, payload map[string]any, emptyCount int, failEmpty bool) error {
-	if err := outfmt.WriteJSON(ctx, os.Stdout, payload); err != nil {
+	if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload); err != nil {
 		return err
 	}
 	if emptyCount == 0 {

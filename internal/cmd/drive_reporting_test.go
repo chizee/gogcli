@@ -124,21 +124,17 @@ func TestExecuteDriveTreeJSON(t *testing.T) {
 		}
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
-	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@example.com", "drive", "tree", "--parent", "root", "--depth", "2"}); err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-		})
-	})
+	result := executeWithDriveTestService(t, []string{"--json", "--account", "a@example.com", "drive", "tree", "--parent", "root", "--depth", "2"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%s", result.err, result.stderr)
+	}
 
 	var parsed struct {
 		Items []driveTreeItem `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
-		t.Fatalf("json parse: %v\nout=%q", err, out)
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, result.stdout)
 	}
 	if len(parsed.Items) != 4 {
 		t.Fatalf("items len = %d, want 4: %#v", len(parsed.Items), parsed.Items)
@@ -167,18 +163,15 @@ func TestExecuteDriveTreeJSON(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name+" plain schema", func(t *testing.T) {
-			plainOut := captureStdout(t, func() {
-				_ = captureStderr(t, func() {
-					if err := Execute(tc.args); err != nil {
-						t.Fatalf("Execute: %v", err)
-					}
-				})
-			})
-			if !strings.HasPrefix(plainOut, tc.wantHeader) {
-				t.Fatalf("plain output header = %q, want prefix %q", plainOut, tc.wantHeader)
+			plainResult := executeWithDriveTestService(t, tc.args, svc)
+			if plainResult.err != nil {
+				t.Fatalf("Execute: %v\nstderr=%s", plainResult.err, plainResult.stderr)
 			}
-			if strings.Contains(plainOut, "TARGET_ID") {
-				t.Fatalf("plain output schema changed unexpectedly: %q", plainOut)
+			if !strings.HasPrefix(plainResult.stdout, tc.wantHeader) {
+				t.Fatalf("plain output header = %q, want prefix %q", plainResult.stdout, tc.wantHeader)
+			}
+			if strings.Contains(plainResult.stdout, "TARGET_ID") {
+				t.Fatalf("plain output schema changed unexpectedly: %q", plainResult.stdout)
 			}
 		})
 	}

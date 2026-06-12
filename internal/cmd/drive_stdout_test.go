@@ -18,7 +18,6 @@ func TestExecute_DriveDownload_WithOutStdout(t *testing.T) {
 
 	svc, closeSvc := newDriveMetadataTestService(t, "text/plain")
 	t.Cleanup(closeSvc)
-	stubDriveServiceForTest(t, svc)
 
 	driveDownload = func(context.Context, *drive.Service, string) (*http.Response, error) {
 		return &http.Response{
@@ -28,20 +27,17 @@ func TestExecute_DriveDownload_WithOutStdout(t *testing.T) {
 		}, nil
 	}
 
-	stdout := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if execErr := Execute([]string{
-				"--account", "a@b.com",
-				"drive", "download", "id1",
-				"--out", "-",
-			}); execErr != nil {
-				t.Fatalf("Execute: %v", execErr)
-			}
-		})
-	})
+	result := executeWithDriveTestService(t, []string{
+		"--account", "a@b.com",
+		"drive", "download", "id1",
+		"--out", "-",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%s", result.err, result.stderr)
+	}
 
-	if stdout != "abc" {
-		t.Fatalf("stdout=%q, want raw bytes", stdout)
+	if result.stdout != "abc" {
+		t.Fatalf("stdout=%q, want raw bytes", result.stdout)
 	}
 	if _, statErr := os.Stat("-"); !os.IsNotExist(statErr) {
 		t.Fatalf("expected no file named -, stat=%v", statErr)
@@ -54,7 +50,6 @@ func TestExecute_DriveDownload_WithOutStdout_JSONRejected(t *testing.T) {
 
 	svc, closeSvc := newDriveMetadataTestService(t, "text/plain")
 	t.Cleanup(closeSvc)
-	stubDriveServiceForTest(t, svc)
 
 	called := false
 	driveDownload = func(context.Context, *drive.Service, string) (*http.Response, error) {
@@ -66,23 +61,18 @@ func TestExecute_DriveDownload_WithOutStdout_JSONRejected(t *testing.T) {
 		}, nil
 	}
 
-	var execErr error
-	stdout := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			execErr = Execute([]string{
-				"--json",
-				"--account", "a@b.com",
-				"drive", "download", "id1",
-				"--out", "-",
-			})
-		})
-	})
+	result := executeWithDriveTestService(t, []string{
+		"--json",
+		"--account", "a@b.com",
+		"drive", "download", "id1",
+		"--out", "-",
+	}, svc)
 
-	if execErr == nil || !strings.Contains(execErr.Error(), "can't combine --json with --out -") {
-		t.Fatalf("unexpected error: %v", execErr)
+	if result.err == nil || !strings.Contains(result.err.Error(), "can't combine --json with --out -") {
+		t.Fatalf("unexpected error: %v", result.err)
 	}
-	if stdout != "" {
-		t.Fatalf("stdout=%q, want empty", stdout)
+	if result.stdout != "" {
+		t.Fatalf("stdout=%q, want empty", result.stdout)
 	}
 	if called {
 		t.Fatalf("download should not be called")
@@ -96,7 +86,6 @@ func TestExecute_DocsExport_WithOutStdout(t *testing.T) {
 
 	svc, closeSvc := newDriveMetadataTestService(t, "application/vnd.google-apps.document")
 	t.Cleanup(closeSvc)
-	stubDriveServiceForTest(t, svc)
 
 	var gotExportMime string
 	driveExportDownload = func(_ context.Context, _ *drive.Service, _ string, mimeType string) (*http.Response, error) {
@@ -108,21 +97,18 @@ func TestExecute_DocsExport_WithOutStdout(t *testing.T) {
 		}, nil
 	}
 
-	stdout := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if execErr := Execute([]string{
-				"--account", "a@b.com",
-				"docs", "export", "id1",
-				"--out", "-",
-				"--format", "txt",
-			}); execErr != nil {
-				t.Fatalf("Execute: %v", execErr)
-			}
-		})
-	})
+	result := executeWithDriveTestService(t, []string{
+		"--account", "a@b.com",
+		"docs", "export", "id1",
+		"--out", "-",
+		"--format", "txt",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%s", result.err, result.stderr)
+	}
 
-	if stdout != "plain text\n" {
-		t.Fatalf("stdout=%q, want raw export bytes", stdout)
+	if result.stdout != "plain text\n" {
+		t.Fatalf("stdout=%q, want raw export bytes", result.stdout)
 	}
 	if gotExportMime != "text/plain" {
 		t.Fatalf("unexpected export mime type: %q", gotExportMime)
@@ -138,7 +124,6 @@ func TestExecute_DocsExport_WithOutStdout_JSONRejected(t *testing.T) {
 
 	svc, closeSvc := newDriveMetadataTestService(t, "application/vnd.google-apps.document")
 	t.Cleanup(closeSvc)
-	stubDriveServiceForTest(t, svc)
 
 	called := false
 	driveExportDownload = func(context.Context, *drive.Service, string, string) (*http.Response, error) {
@@ -150,24 +135,19 @@ func TestExecute_DocsExport_WithOutStdout_JSONRejected(t *testing.T) {
 		}, nil
 	}
 
-	var execErr error
-	stdout := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			execErr = Execute([]string{
-				"--json",
-				"--account", "a@b.com",
-				"docs", "export", "id1",
-				"--out", "-",
-				"--format", "txt",
-			})
-		})
-	})
+	result := executeWithDriveTestService(t, []string{
+		"--json",
+		"--account", "a@b.com",
+		"docs", "export", "id1",
+		"--out", "-",
+		"--format", "txt",
+	}, svc)
 
-	if execErr == nil || !strings.Contains(execErr.Error(), "can't combine --json with --out -") {
-		t.Fatalf("unexpected error: %v", execErr)
+	if result.err == nil || !strings.Contains(result.err.Error(), "can't combine --json with --out -") {
+		t.Fatalf("unexpected error: %v", result.err)
 	}
-	if stdout != "" {
-		t.Fatalf("stdout=%q, want empty", stdout)
+	if result.stdout != "" {
+		t.Fatalf("stdout=%q, want empty", result.stdout)
 	}
 	if called {
 		t.Fatalf("export should not be called")

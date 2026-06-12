@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/steipete/gogcli/internal/app"
@@ -41,4 +43,34 @@ func newCmdJSONOutputContext(t *testing.T, stdout, stderr io.Writer) context.Con
 func newCmdRuntimeJSONOutputContext(t *testing.T, stdout, stderr io.Writer) context.Context {
 	t.Helper()
 	return outfmt.WithMode(newCmdRuntimeOutputContext(t, stdout, stderr), outfmt.Mode{JSON: true})
+}
+
+type executeTestResult struct {
+	stdout string
+	stderr string
+	err    error
+}
+
+func executeWithTestRuntime(t *testing.T, args []string, runtime *app.Runtime) executeTestResult {
+	t.Helper()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if runtime == nil {
+		runtime = &app.Runtime{}
+	} else {
+		runtimeCopy := *runtime
+		runtime = &runtimeCopy
+	}
+	runtime.IO = app.IO{
+		In:  strings.NewReader(""),
+		Out: &stdout,
+		Err: &stderr,
+	}
+	err := executeWithRuntime(args, runtime)
+	return executeTestResult{
+		stdout: stdout.String(),
+		stderr: stderr.String(),
+		err:    err,
+	}
 }

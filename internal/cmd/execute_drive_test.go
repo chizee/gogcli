@@ -38,15 +38,11 @@ func TestExecute_DriveGet_JSON(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-	stubDriveServiceForTest(t, svc)
 
-	out := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@b.com", "drive", "get", "id1"}); err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-		})
-	})
+	result := executeWithDriveTestService(t, []string{"--json", "--account", "a@b.com", "drive", "get", "id1"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%s", result.err, result.stderr)
+	}
 
 	var parsed struct {
 		File struct {
@@ -55,8 +51,8 @@ func TestExecute_DriveGet_JSON(t *testing.T) {
 			Starred bool   `json:"starred"`
 		} `json:"file"`
 	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
-		t.Fatalf("json parse: %v\nout=%q", err, out)
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, result.stdout)
 	}
 	if parsed.File.ID != "id1" || parsed.File.Name != "Doc" || !parsed.File.Starred {
 		t.Fatalf("unexpected file: %#v", parsed.File)

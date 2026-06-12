@@ -151,7 +151,7 @@ func writePollJSON(ctx context.Context, payload any) error {
 	if err := compact.WriteByte('\n'); err != nil {
 		return err
 	}
-	if _, err := os.Stdout.Write(compact.Bytes()); err != nil {
+	if _, err := stdoutWriter(ctx).Write(compact.Bytes()); err != nil {
 		return fmt.Errorf("write poll output: %w", err)
 	}
 	return nil

@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -34,13 +36,12 @@ func TestDriveAuditSharingFindsPublicAndExternal(t *testing.T) {
 		}
 	}))
 	defer closeSvc()
-	stubDriveServiceForTest(t, svc)
 
-	out := captureStdout(t, func() {
-		if err := (&DriveAuditSharingCmd{Parent: "root", Depth: 1, Max: 10}).Run(newCalendarJSONContext(t), &RootFlags{Account: "owner@example.com"}); err != nil {
-			t.Fatalf("Run: %v", err)
-		}
-	})
+	var stdout bytes.Buffer
+	ctx := withDriveTestService(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), svc)
+	if err := (&DriveAuditSharingCmd{Parent: "root", Depth: 1, Max: 10}).Run(ctx, &RootFlags{Account: "owner@example.com"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
 
 	var parsed struct {
 		FindingCount int `json:"findingCount"`
@@ -49,8 +50,8 @@ func TestDriveAuditSharingFindsPublicAndExternal(t *testing.T) {
 			Reasons      []string `json:"reasons"`
 		} `json:"findings"`
 	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
-		t.Fatalf("json parse: %v\n%s", err, out)
+	if err := json.Unmarshal(stdout.Bytes(), &parsed); err != nil {
+		t.Fatalf("json parse: %v\n%s", err, stdout.String())
 	}
 	if parsed.FindingCount != 2 {
 		t.Fatalf("finding count = %d, want 2: %#v", parsed.FindingCount, parsed.Findings)

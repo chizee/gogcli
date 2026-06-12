@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -301,7 +300,7 @@ func writeDocsCommentPollEvent(ctx context.Context, event docsCommentPollEvent, 
 		author = event.Comment.Author.DisplayName
 	}
 	if _, err := fmt.Fprintf(
-		os.Stdout,
+		stdoutWriter(ctx),
 		"comment\t%s\t%s\t%s\t%s\t%t\n",
 		event.Comment.Id,
 		oneLineTSV(author),
