@@ -33,7 +33,7 @@ func newDefaultRuntime() *app.Runtime {
 		},
 		Services: app.Services{
 			Calendar:      googleapi.NewCalendar,
-			Chat:          newChatService,
+			Chat:          googleapi.NewChat,
 			Classroom:     googleapi.NewClassroom,
 			CloudIdentity: newCloudIdentityService,
 			Docs:          googleapi.NewDocs,
@@ -163,7 +163,7 @@ func chatService(ctx context.Context, account string) (*chat.Service, error) {
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.Chat != nil {
 		return runtime.Services.Chat(ctx, account)
 	}
-	return newChatService(ctx, account)
+	return googleapi.NewChat(ctx, account)
 }
 
 func classroomService(ctx context.Context, account string) (*classroom.Service, error) {
