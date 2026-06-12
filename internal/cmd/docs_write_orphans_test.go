@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ func TestDocsWriteCheckOrphansValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runKong(t, &DocsWriteCmd{}, tt.args, newDocsCmdContext(t), &RootFlags{Account: "a@b.com", DryRun: true})
+			err := runKong(t, &DocsWriteCmd{}, tt.args, newCmdRuntimeOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@b.com", DryRun: true})
 			if err == nil || !strings.Contains(err.Error(), "--check-orphans requires --replace --markdown") {
 				t.Fatalf("err = %v", err)
 			}
@@ -33,19 +34,20 @@ func TestDocsWriteCheckOrphansValidation(t *testing.T) {
 }
 
 func TestDocsWriteCheckOrphansDryRunSkipsServices(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
 	driveFactory := func(context.Context, string) (*drive.Service, error) {
 		t.Fatal("dry-run must not create Drive service")
 		return nil, errors.New("unexpected Drive service creation")
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) {
+	docsFactory := func(context.Context, string) (*docs.Service, error) {
 		t.Fatal("dry-run must not create Docs service")
 		return nil, errors.New("unexpected Docs service creation")
 	}
 
 	var stdout, stderr bytes.Buffer
-	ctx := withDriveTestServiceFactory(newCmdRuntimeJSONOutputContext(t, &stdout, &stderr), driveFactory)
+	ctx := withDocsTestServiceFactory(
+		withDriveTestServiceFactory(newCmdRuntimeJSONOutputContext(t, &stdout, &stderr), driveFactory),
+		docsFactory,
+	)
 	runErr := runKong(t, &DocsWriteCmd{},
 		[]string{"doc1", "--text", "replacement", "--markdown", "--replace", "--check-orphans"},
 		ctx,

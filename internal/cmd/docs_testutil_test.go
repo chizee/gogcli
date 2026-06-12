@@ -14,7 +14,6 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -81,11 +80,6 @@ func newDocsCmdOutputContext(t *testing.T) (context.Context, *bytes.Buffer) {
 		t.Fatalf("ui.New: %v", err)
 	}
 	return ui.WithUI(context.Background(), u), &out
-}
-
-func newDocsJSONContext(t *testing.T) context.Context {
-	t.Helper()
-	return outfmt.WithMode(newDocsCmdContext(t), outfmt.Mode{JSON: true})
 }
 
 func newDocsJSONContextWithDrive(t *testing.T, svc *drive.Service) context.Context {

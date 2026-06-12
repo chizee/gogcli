@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -15,9 +15,6 @@ import (
 )
 
 func TestDocsWriteUpdate_FileInput(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,10 +48,9 @@ func TestDocsWriteUpdate_FileInput(t *testing.T) {
 		}
 	}))
 	defer cleanup()
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), docSvc)
 	tmpDir := t.TempDir()
 
 	tmpFile := filepath.Join(tmpDir, "test-input.txt")
@@ -131,17 +127,13 @@ func TestDocsWriteUpdate_FileInput(t *testing.T) {
 }
 
 func TestDocsWriteUpdate_FileInputErrors(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}))
 	defer cleanup()
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), docSvc)
 
 	err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--file", "/nonexistent/path/file.txt"}, ctx, flags)
 	if err == nil {

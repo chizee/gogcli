@@ -17,9 +17,6 @@ import (
 // DeleteContentRange and re-render the markdown locally via Docs batchUpdate
 // against the targeted tab.
 func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 	var includeTabsCalls int
 
@@ -49,10 +46,11 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter"),
+		docSvc,
+	)
 
 	markdown := "# Title\n\n**bold**\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
@@ -117,9 +115,6 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	getCalls := 0
 	var batches []docs.BatchUpdateDocumentRequest
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -154,12 +149,13 @@ func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	markdown := "| Value | Literal |\n| --- | --- |\n| Alice<br>Bob | `<br>` |"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
 		"doc1", "--text", markdown, "--replace", "--markdown",
-	}, newDocsJSONContextWithoutDrive(t, "table-cell breaks must use the local Docs renderer"), &RootFlags{Account: "a@b.com"}); err != nil {
+	}, withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "table-cell breaks must use the local Docs renderer"),
+		docSvc,
+	), &RootFlags{Account: "a@b.com"}); err != nil {
 		t.Fatalf("markdown replace with table breaks: %v", err)
 	}
 
@@ -189,9 +185,6 @@ func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 	var includeTabsCalls int
 	var getCalls int
@@ -260,10 +253,11 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter"),
+		docSvc,
+	)
 
 	markdown := "# Files {#attachments}\n\n[Jump](#attachments)\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
@@ -302,9 +296,6 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 }
 
 func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -330,10 +321,11 @@ func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter"),
+		docSvc,
+	)
 
 	markdown := "- Parent\n  - Child\n    - Grandchild\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
@@ -365,9 +357,6 @@ func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
 // targeted tab is already empty (endIndex == 1) the DeleteContentRange step
 // is skipped — the Docs API rejects a delete range where end <= start.
 func TestDocsWrite_MarkdownReplaceWithTab_EmptyTab(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -401,10 +390,11 @@ func TestDocsWrite_MarkdownReplaceWithTab_EmptyTab(t *testing.T) {
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter"),
+		docSvc,
+	)
 
 	if err := runKong(t, &DocsWriteCmd{}, []string{
 		"doc1", "--text", "hello\n", "--replace", "--markdown", "--tab", "Blank",
@@ -427,9 +417,6 @@ func TestDocsWrite_MarkdownReplaceWithTab_EmptyTab(t *testing.T) {
 // --tab value still produces the standard tab-not-found error and never
 // issues any batchUpdate.
 func TestDocsWrite_MarkdownReplaceWithTab_TabNotFound(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchUpdates int
 
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -441,10 +428,11 @@ func TestDocsWrite_MarkdownReplaceWithTab_TabNotFound(t *testing.T) {
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "tab-not-found path must not invoke Drive")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "tab-not-found path must not invoke Drive"),
+		docSvc,
+	)
 
 	err := runKong(t, &DocsWriteCmd{}, []string{
 		"doc1", "--text", "x", "--replace", "--markdown", "--tab", "Missing",

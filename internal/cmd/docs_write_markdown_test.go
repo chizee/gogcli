@@ -19,9 +19,6 @@ import (
 )
 
 func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var sawDriveUpdate bool
 	var uploadBody string
 
@@ -62,13 +59,15 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDriveService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) {
-		t.Fatal("markdown replace should not use Docs batchUpdate service")
-		return nil, errors.New("unexpected Docs service call")
-	}
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithDrive(t, driveSvc)
+	ctx := withDocsTestServiceFactory(
+		newDocsJSONContextWithDrive(t, driveSvc),
+		func(context.Context, string) (*docs.Service, error) {
+			t.Fatal("markdown replace should not use Docs batchUpdate service")
+			return nil, errors.New("unexpected Docs service call")
+		},
+	)
 
 	tmpDir := t.TempDir()
 	mdFile := filepath.Join(tmpDir, "test.md")
@@ -92,9 +91,6 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownReplaceNormalizesEmptyTableHeaderForDrive(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var uploadBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -120,14 +116,16 @@ func TestDocsWrite_MarkdownReplaceNormalizesEmptyTableHeaderForDrive(t *testing.
 	if err != nil {
 		t.Fatalf("NewDriveService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) {
-		t.Fatal("empty-header normalization should not require Docs service")
-		return nil, errors.New("unexpected Docs service call")
-	}
 
 	markdown := "|     |     |\n|-----|-----|\n| Label A | Value A |\n| Label B | Value B |\n"
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithDrive(t, driveSvc)
+	ctx := withDocsTestServiceFactory(
+		newDocsJSONContextWithDrive(t, driveSvc),
+		func(context.Context, string) (*docs.Service, error) {
+			t.Fatal("empty-header normalization should not require Docs service")
+			return nil, errors.New("unexpected Docs service call")
+		},
+	)
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--replace", "--markdown"}, ctx, flags); err != nil {
 		t.Fatalf("markdown replace write: %v", err)
 	}
@@ -140,9 +138,6 @@ func TestDocsWrite_MarkdownReplaceNormalizesEmptyTableHeaderForDrive(t *testing.
 }
 
 func TestDocsWrite_MarkdownReplaceRewritesHeadingSlugLinks(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var sawDocsGet bool
 	var batchReq docs.BatchUpdateDocumentRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -212,11 +207,10 @@ func TestDocsWrite_MarkdownReplaceRewritesHeadingSlugLinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docsSvc, nil }
 
 	markdown := "# Executive Summary\n\n[Jump](#executive-summary)\n"
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithDrive(t, driveSvc)
+	ctx := withDocsTestService(newDocsJSONContextWithDrive(t, driveSvc), docsSvc)
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--replace", "--markdown"}, ctx, flags); err != nil {
 		t.Fatalf("markdown replace write: %v", err)
 	}
@@ -233,9 +227,6 @@ func TestDocsWrite_MarkdownReplaceRewritesHeadingSlugLinks(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownReplaceStripsExplicitHeadingAnchors(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var uploadBody string
 	var sawDocsGet bool
 	var batchReq docs.BatchUpdateDocumentRequest
@@ -311,11 +302,10 @@ func TestDocsWrite_MarkdownReplaceStripsExplicitHeadingAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docsSvc, nil }
 
 	markdown := "# Files {#attachments}\n\n[Jump](#attachments)\n"
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithDrive(t, driveSvc)
+	ctx := withDocsTestService(newDocsJSONContextWithDrive(t, driveSvc), docsSvc)
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--replace", "--markdown"}, ctx, flags); err != nil {
 		t.Fatalf("markdown replace write: %v", err)
 	}
@@ -335,10 +325,8 @@ func TestDocsWrite_MarkdownReplaceStripsExplicitHeadingAnchors(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
-	origDocs := newDocsService
 	origRetryDelays := docsImageInsertRetryDelays
 	t.Cleanup(func() {
-		newDocsService = origDocs
 		docsImageInsertRetryDelays = origRetryDelays
 	})
 	docsImageInsertRetryDelays = []time.Duration{0}
@@ -411,7 +399,6 @@ func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docsSvc, nil }
 
 	markdown := strings.Join([]string{
 		"# Images",
@@ -422,7 +409,7 @@ func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 	}, "\n")
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithDrive(t, driveSvc)
+	ctx := withDocsTestService(newDocsJSONContextWithDrive(t, driveSvc), docsSvc)
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--replace", "--markdown"}, ctx, flags); err != nil {
 		t.Fatalf("markdown replace write: %v", err)
 	}
@@ -456,9 +443,6 @@ func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownLocalImagesReturnActionableError(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	tmpDir := t.TempDir()
 	imgDir := filepath.Join(tmpDir, "assets")
 	if err := os.Mkdir(imgDir, 0o700); err != nil {
@@ -513,10 +497,9 @@ func TestDocsWrite_MarkdownLocalImagesReturnActionableError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docsSvc, nil }
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithDrive(t, driveSvc)
+	ctx := withDocsTestService(newDocsJSONContextWithDrive(t, driveSvc), docsSvc)
 	err = runKong(t, &DocsWriteCmd{}, []string{"doc1", "--file", mdFile, "--replace", "--markdown"}, ctx, flags)
 	if err == nil {
 		t.Fatal("expected local markdown image error")
@@ -530,9 +513,6 @@ func TestDocsWrite_MarkdownLocalImagesReturnActionableError(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -558,10 +538,11 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown append should not use Drive update")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown append should not use Drive update"),
+		docSvc,
+	)
 
 	markdown := "# Title\n\n**bold**\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text=" + markdown, "--append", "--markdown"}, ctx, flags); err != nil {
@@ -595,9 +576,6 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 }
 
 func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 	var getCalls int
 
@@ -669,10 +647,11 @@ func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown append should not use Drive update")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown append should not use Drive update"),
+		docSvc,
+	)
 
 	markdown := "# Files {#attachments}\n\n[Jump](#attachments)\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text=" + markdown, "--append", "--markdown"}, ctx, flags); err != nil {
@@ -702,9 +681,6 @@ func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T
 }
 
 func TestDocsWrite_MarkdownAppendStartsStyledBlocksOnFreshParagraph(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	var batchRequests [][]*docs.Request
 
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -729,10 +705,11 @@ func TestDocsWrite_MarkdownAppendStartsStyledBlocksOnFreshParagraph(t *testing.T
 	}))
 	defer cleanup()
 
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContextWithoutDrive(t, "markdown append should not use Drive update")
+	ctx := withDocsTestService(
+		newDocsJSONContextWithoutDrive(t, "markdown append should not use Drive update"),
+		docSvc,
+	)
 
 	markdown := "- Item\n\n```\nline 1\nline 2\n```\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text=" + markdown, "--append", "--markdown"}, ctx, flags); err != nil {
