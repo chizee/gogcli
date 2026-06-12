@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -300,8 +301,6 @@ func TestDocsInsertPageBreakBatchQueuesWithoutSubmitting(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	originalDocs := newDocsService
-	t.Cleanup(func() { newDocsService = originalDocs })
 	postCalls := 0
 	docService, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -313,10 +312,10 @@ func TestDocsInsertPageBreakBatchQueuesWithoutSubmitting(t *testing.T) {
 		}
 	}))
 	defer cleanup()
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docService, nil }
 
 	command := &DocsInsertPageBreakCmd{}
-	if runErr := runKong(t, command, []string{"doc1", "--index", "7", "--batch", state.BatchID}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"}); runErr != nil {
+	ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), docService)
+	if runErr := runKong(t, command, []string{"doc1", "--index", "7", "--batch", state.BatchID}, ctx, &RootFlags{Account: "a@b.com"}); runErr != nil {
 		t.Fatalf("queue page break: %v", runErr)
 	}
 	if postCalls != 0 {
@@ -336,7 +335,7 @@ func TestDocsInsertPageBreakBatchQueuesWithoutSubmitting(t *testing.T) {
 
 func TestDocsWriteBatchRejectsMultiPhaseModes(t *testing.T) {
 	command := &DocsWriteCmd{}
-	err := runKong(t, command, []string{"doc1", "--text", "# title", "--markdown", "--replace", "--batch", "not-used"}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"})
+	err := runKong(t, command, []string{"doc1", "--text", "# title", "--markdown", "--replace", "--batch", "not-used"}, newCmdRuntimeOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@b.com"})
 	if err == nil || !strings.Contains(err.Error(), "--batch supports plain text") {
 		t.Fatalf("error = %v", err)
 	}

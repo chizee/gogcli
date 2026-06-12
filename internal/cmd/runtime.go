@@ -26,7 +26,7 @@ func newDefaultRuntime() *app.Runtime {
 			Err: os.Stderr,
 		},
 		Services: app.Services{
-			Docs: newDocsService,
+			Docs: googleapi.NewDocs,
 			DocsHTTP: func(ctx context.Context, account string) (*http.Client, error) {
 				return googleapi.NewHTTPClient(ctx, googleauth.ServiceDocs, account)
 			},
@@ -117,7 +117,7 @@ func docsService(ctx context.Context, account string) (*docs.Service, error) {
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.Docs != nil {
 		return runtime.Services.Docs(ctx, account)
 	}
-	return newDocsService(ctx, account)
+	return googleapi.NewDocs(ctx, account)
 }
 
 func docsHTTPClient(ctx context.Context, account string) (*http.Client, error) {

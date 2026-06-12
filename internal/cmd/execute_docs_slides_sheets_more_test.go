@@ -14,14 +14,11 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
+
+	"github.com/steipete/gogcli/internal/app"
 )
 
 func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-	})
-
 	var createCalls int32
 	var copyCalls int32
 	var exportCalls int32
@@ -142,7 +139,6 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	export := func(_ context.Context, _ *drive.Service, fileID, mimeType string) (*http.Response, error) {
 		if fileID == "" || mimeType == "" {
@@ -156,8 +152,15 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 		}, nil
 	}
 
+	runtime := &app.Runtime{Services: app.Services{
+		Docs: func(context.Context, string) (*docs.Service, error) {
+			return docSvc, nil
+		},
+		Drive:       stubDriveService(svc),
+		DriveExport: export,
+	}}
 	run := func(args ...string) map[string]any {
-		result := executeWithDriveTestOperations(t, append([]string{"--json", "--account", "a@b.com"}, args...), svc, nil, export)
+		result := executeWithTestRuntime(t, append([]string{"--json", "--account", "a@b.com"}, args...), runtime)
 		if result.err != nil {
 			t.Fatalf("Execute(%v): %v", args, result.err)
 		}
@@ -195,9 +198,6 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 }
 
 func TestExecute_DocsCat_WrongMime(t *testing.T) {
-	origDocs := newDocsService
-	t.Cleanup(func() { newDocsService = origDocs })
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}))
@@ -211,10 +211,16 @@ func TestExecute_DocsCat_WrongMime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	err = Execute([]string{"--account", "a@b.com", "docs", "cat", "x1"})
-	if err == nil {
+	result := executeWithTestRuntime(t,
+		[]string{"--account", "a@b.com", "docs", "cat", "x1"},
+		&app.Runtime{Services: app.Services{
+			Docs: func(context.Context, string) (*docs.Service, error) {
+				return docSvc, nil
+			},
+		}},
+	)
+	if result.err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
