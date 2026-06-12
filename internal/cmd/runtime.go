@@ -15,6 +15,7 @@ import (
 
 	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/steipete/gogcli/internal/googleauth"
 )
 
 func newDefaultRuntime() *app.Runtime {
@@ -25,7 +26,10 @@ func newDefaultRuntime() *app.Runtime {
 			Err: os.Stderr,
 		},
 		Services: app.Services{
-			Docs:           newDocsService,
+			Docs: newDocsService,
+			DocsHTTP: func(ctx context.Context, account string) (*http.Client, error) {
+				return googleapi.NewHTTPClient(ctx, googleauth.ServiceDocs, account)
+			},
 			Drive:          googleapi.NewDrive,
 			Gmail:          googleapi.NewGmail,
 			PeopleContacts: newPeopleContactsService,
@@ -57,6 +61,9 @@ func normalizedRuntime(runtime *app.Runtime) *app.Runtime {
 	}
 	if normalized.Services.Docs == nil {
 		normalized.Services.Docs = defaults.Services.Docs
+	}
+	if normalized.Services.DocsHTTP == nil {
+		normalized.Services.DocsHTTP = defaults.Services.DocsHTTP
 	}
 	if normalized.Services.Gmail == nil {
 		normalized.Services.Gmail = defaults.Services.Gmail
@@ -111,6 +118,13 @@ func docsService(ctx context.Context, account string) (*docs.Service, error) {
 		return runtime.Services.Docs(ctx, account)
 	}
 	return newDocsService(ctx, account)
+}
+
+func docsHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.DocsHTTP != nil {
+		return runtime.Services.DocsHTTP(ctx, account)
+	}
+	return googleapi.NewHTTPClient(ctx, googleauth.ServiceDocs, account)
 }
 
 func gmailService(ctx context.Context, account string) (*gmail.Service, error) {

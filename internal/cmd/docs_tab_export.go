@@ -16,8 +16,6 @@ import (
 	"google.golang.org/api/docs/v1"
 
 	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -34,11 +32,6 @@ const (
 
 // maxRedirects matches net/http.defaultCheckRedirect (10 hops).
 const maxRedirects = 10
-
-// newDocsHTTPClient is swapped in tests to avoid real auth.
-var newDocsHTTPClient = func(ctx context.Context, email string) (*http.Client, error) {
-	return googleapi.NewHTTPClient(ctx, googleauth.ServiceDocs, email)
-}
 
 // googleExportRedirectPolicy allows redirects within Google's serving
 // infrastructure (*.google.com, *.googleusercontent.com, *.googleapis.com)
@@ -205,7 +198,7 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 		return err
 	}
 
-	httpClient, err := newDocsHTTPClient(ctx, account)
+	httpClient, err := docsHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -230,7 +223,7 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 	}
 
 	if isStdoutPath(outPath) {
-		_, copyErr := io.Copy(os.Stdout, resp.Body)
+		_, copyErr := io.Copy(stdoutWriter(ctx), resp.Body)
 		return copyErr
 	}
 
@@ -246,7 +239,7 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"path": outPath, "size": n})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"path": outPath, "size": n})
 	}
 	u.Out().Linef("path\t%s", outPath)
 	u.Out().Linef("size\t%s", formatDriveSize(n))

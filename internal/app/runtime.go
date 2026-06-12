@@ -20,18 +20,20 @@ type IO struct {
 }
 
 type (
-	DocsServiceFactory   func(context.Context, string) (*docs.Service, error)
-	DriveServiceFactory  func(context.Context, string) (*drive.Service, error)
-	GmailServiceFactory  func(context.Context, string) (*gmail.Service, error)
-	PeopleServiceFactory func(context.Context, string) (*people.Service, error)
-	SheetsServiceFactory func(context.Context, string) (*sheets.Service, error)
-	SlidesServiceFactory func(context.Context, string) (*slides.Service, error)
-	DriveDownloadFunc    func(context.Context, *drive.Service, string) (*http.Response, error)
-	DriveExportFunc      func(context.Context, *drive.Service, string, string) (*http.Response, error)
+	DocsServiceFactory    func(context.Context, string) (*docs.Service, error)
+	DocsHTTPClientFactory func(context.Context, string) (*http.Client, error)
+	DriveServiceFactory   func(context.Context, string) (*drive.Service, error)
+	GmailServiceFactory   func(context.Context, string) (*gmail.Service, error)
+	PeopleServiceFactory  func(context.Context, string) (*people.Service, error)
+	SheetsServiceFactory  func(context.Context, string) (*sheets.Service, error)
+	SlidesServiceFactory  func(context.Context, string) (*slides.Service, error)
+	DriveDownloadFunc     func(context.Context, *drive.Service, string) (*http.Response, error)
+	DriveExportFunc       func(context.Context, *drive.Service, string, string) (*http.Response, error)
 )
 
 type Services struct {
 	Docs           DocsServiceFactory
+	DocsHTTP       DocsHTTPClientFactory
 	Drive          DriveServiceFactory
 	Gmail          GmailServiceFactory
 	PeopleContacts PeopleServiceFactory

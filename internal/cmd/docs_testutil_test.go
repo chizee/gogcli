@@ -52,6 +52,18 @@ func withDocsTestServiceFactory(ctx context.Context, factory app.DocsServiceFact
 	return app.WithRuntime(ctx, runtime)
 }
 
+func withDocsTestHTTPClientFactory(ctx context.Context, factory app.DocsHTTPClientFactory) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runtime := &app.Runtime{}
+	if existing, ok := app.FromContext(ctx); ok {
+		*runtime = *existing
+	}
+	runtime.Services.DocsHTTP = factory
+	return app.WithRuntime(ctx, runtime)
+}
+
 func newDocsCmdContext(t *testing.T) context.Context {
 	t.Helper()
 	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})

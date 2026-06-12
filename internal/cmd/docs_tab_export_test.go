@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -33,15 +35,8 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
-func stubTabExportDeps(t *testing.T, exportHandler http.Handler) {
+func stubTabExportDeps(t *testing.T, exportHandler http.Handler) (*docs.Service, func(context.Context, string) (*http.Client, error)) {
 	t.Helper()
-
-	origDocs := newDocsService
-	origHTTP := newDocsHTTPClient
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDocsHTTPClient = origHTTP
-	})
 
 	docsSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -57,11 +52,8 @@ func stubTabExportDeps(t *testing.T, exportHandler http.Handler) {
 	if err != nil {
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	newDocsService = func(_ context.Context, _ string) (*docs.Service, error) {
-		return docSvc, nil
-	}
 
-	newDocsHTTPClient = func(_ context.Context, _ string) (*http.Client, error) {
+	httpFactory := func(_ context.Context, _ string) (*http.Client, error) {
 		return &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				rec := httptest.NewRecorder()
@@ -70,6 +62,24 @@ func stubTabExportDeps(t *testing.T, exportHandler http.Handler) {
 			}),
 		}, nil
 	}
+	return docSvc, httpFactory
+}
+
+func newTabExportTestContext(t *testing.T, exportHandler http.Handler, jsonOutput bool) (context.Context, *bytes.Buffer) {
+	t.Helper()
+
+	docSvc, httpFactory := stubTabExportDeps(t, exportHandler)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	var ctx context.Context
+	if jsonOutput {
+		ctx = newCmdRuntimeJSONOutputContext(t, stdout, stderr)
+	} else {
+		ctx = newCmdRuntimeOutputContext(t, stdout, stderr)
+	}
+	ctx = withDocsTestService(ctx, docSvc)
+	ctx = withDocsTestHTTPClientFactory(ctx, httpFactory)
+	return ctx, stdout
 }
 
 func TestTabExportFormatParam(t *testing.T) {
@@ -241,15 +251,17 @@ func TestRunDocsTabExport(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var ctx context.Context
 			if tt.wantErr == "" {
-				stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				ctx, _ = newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Content-Type", tt.respCT)
 					_, _ = w.Write([]byte(tt.respBody))
-				}))
+				}), false)
+			} else {
+				ctx = newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
 			}
 
 			outPath := filepath.Join(t.TempDir(), "output."+tt.format)
-			ctx := newDocsCmdContext(t)
 			flags := &RootFlags{Account: "test@example.com"}
 
 			err := runDocsTabExport(ctx, flags, tabExportParams{
@@ -281,12 +293,11 @@ func TestRunDocsTabExport(t *testing.T) {
 }
 
 func TestRunDocsTabExport_HTMLRedirectGuard(t *testing.T) {
-	stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ctx, _ := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "Text/HTML; charset=utf-8")
 		_, _ = w.Write([]byte("<html>Sign in</html>"))
-	}))
+	}), false)
 
-	ctx := newDocsCmdContext(t)
 	err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
 		DocID:    "doc1",
 		OutFlag:  filepath.Join(t.TempDir(), "out.pdf"),
@@ -299,28 +310,23 @@ func TestRunDocsTabExport_HTMLRedirectGuard(t *testing.T) {
 }
 
 func TestRunDocsTabExport_OutStdout(t *testing.T) {
-	stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ctx, stdout := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("tab text\n"))
-	}))
+	}), false)
 	t.Chdir(t.TempDir())
 
-	ctx := newDocsCmdContext(t)
-	stdout := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
-				DocID:    "doc1",
-				OutFlag:  "-",
-				Format:   "txt",
-				TabQuery: "First Tab",
-			})
-			if err != nil {
-				t.Fatalf("runDocsTabExport: %v", err)
-			}
-		})
+	err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
+		DocID:    "doc1",
+		OutFlag:  "-",
+		Format:   "txt",
+		TabQuery: "First Tab",
 	})
-	if stdout != "tab text\n" {
-		t.Fatalf("stdout=%q, want raw export bytes", stdout)
+	if err != nil {
+		t.Fatalf("runDocsTabExport: %v", err)
+	}
+	if stdout.String() != "tab text\n" {
+		t.Fatalf("stdout=%q, want raw export bytes", stdout.String())
 	}
 	if _, statErr := os.Stat("-"); !os.IsNotExist(statErr) {
 		t.Fatalf("expected no file named -, stat=%v", statErr)
@@ -329,28 +335,23 @@ func TestRunDocsTabExport_OutStdout(t *testing.T) {
 
 func TestRunDocsTabExport_OutStdoutJSONRejected(t *testing.T) {
 	called := false
-	stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ctx, stdout := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("tab text\n"))
-	}))
+	}), true)
 
-	ctx := newDocsJSONContext(t)
-	stdout := captureStdout(t, func() {
-		_ = captureStderr(t, func() {
-			err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
-				DocID:    "doc1",
-				OutFlag:  "-",
-				Format:   "txt",
-				TabQuery: "First Tab",
-			})
-			if err == nil || !strings.Contains(err.Error(), "can't combine --json with --out -") {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
+	err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
+		DocID:    "doc1",
+		OutFlag:  "-",
+		Format:   "txt",
+		TabQuery: "First Tab",
 	})
-	if stdout != "" {
-		t.Fatalf("stdout=%q, want empty", stdout)
+	if err == nil || !strings.Contains(err.Error(), "can't combine --json with --out -") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout=%q, want empty", stdout.String())
 	}
 	if called {
 		t.Fatal("export request should not be called")
@@ -368,12 +369,11 @@ func TestRunDocsTabExport_HTTPErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			ctx, _ := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tt.status)
 				_, _ = w.Write([]byte("error body"))
-			}))
+			}), false)
 
-			ctx := newDocsCmdContext(t)
 			err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
 				DocID:    "doc1",
 				OutFlag:  filepath.Join(t.TempDir(), "out.pdf"),
@@ -388,29 +388,25 @@ func TestRunDocsTabExport_HTTPErrors(t *testing.T) {
 }
 
 func TestRunDocsTabExport_JSONOutput(t *testing.T) {
-	stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ctx, stdout := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/pdf")
 		_, _ = w.Write([]byte("pdf bytes"))
-	}))
+	}), true)
 
 	outPath := filepath.Join(t.TempDir(), "output.pdf")
-	ctx := newDocsJSONContext(t)
-
-	raw := captureStdout(t, func() {
-		err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
-			DocID:    "doc1",
-			OutFlag:  outPath,
-			Format:   "pdf",
-			TabQuery: "First Tab",
-		})
-		if err != nil {
-			t.Fatalf("runDocsTabExport: %v", err)
-		}
+	err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, tabExportParams{
+		DocID:    "doc1",
+		OutFlag:  outPath,
+		Format:   "pdf",
+		TabQuery: "First Tab",
 	})
+	if err != nil {
+		t.Fatalf("runDocsTabExport: %v", err)
+	}
 
 	var result map[string]any
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		t.Fatalf("json decode: %v (raw=%q)", err, raw)
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("json decode: %v (raw=%q)", err, stdout.String())
 	}
 	if _, ok := result["path"]; !ok {
 		t.Errorf("JSON output missing 'path' key: %v", result)
@@ -418,13 +414,12 @@ func TestRunDocsTabExport_JSONOutput(t *testing.T) {
 }
 
 func TestDocsExportCmd_TabRouting(t *testing.T) {
-	stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ctx, _ := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/pdf")
 		_, _ = w.Write([]byte("tab pdf"))
-	}))
+	}), false)
 
 	outPath := filepath.Join(t.TempDir(), "out.pdf")
-	ctx := newDocsCmdContext(t)
 
 	cmd := &DocsExportCmd{
 		DocID:  "doc1",
@@ -511,12 +506,11 @@ func TestDriveDownloadCmd_TabRouting(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stubTabExportDeps(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			ctx, _ := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/pdf")
 				_, _ = w.Write([]byte("tab pdf"))
-			}))
+			}), false)
 
-			ctx := newDocsCmdContext(t)
 			cmd := &DriveDownloadCmd{
 				FileID: "doc1",
 				Tab:    "First Tab",
