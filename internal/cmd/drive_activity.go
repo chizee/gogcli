@@ -12,6 +12,8 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const driveActivityActionCreate = "create"
+
 var newDriveActivityService = googleapi.NewDriveActivity
 
 type DriveActivityCmd struct {
@@ -138,7 +140,6 @@ func driveActivityActionCases(actions string) ([]string, error) {
 		"applied_label_change": "APPLIED_LABEL_CHANGE",
 		"label":                "APPLIED_LABEL_CHANGE",
 		"comment":              "COMMENT",
-		"create":               "CREATE",
 		"delete":               "DELETE",
 		"dlp":                  "DLP_CHANGE",
 		"dlp_change":           "DLP_CHANGE",
@@ -152,6 +153,7 @@ func driveActivityActionCases(actions string) ([]string, error) {
 		"settings":             "SETTINGS_CHANGE",
 		"settings_change":      "SETTINGS_CHANGE",
 	}
+	actionMap[driveActivityActionCreate] = "CREATE"
 	var out []string
 	seen := map[string]bool{}
 	for _, raw := range strings.Split(actions, ",") {
@@ -183,7 +185,7 @@ func driveActivityActionName(detail *driveactivity.ActionDetail) string {
 	case detail.Comment != nil:
 		return "comment"
 	case detail.Create != nil:
-		return "create"
+		return driveActivityActionCreate
 	case detail.Delete != nil:
 		return "delete"
 	case detail.DlpChange != nil:
