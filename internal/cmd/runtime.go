@@ -38,9 +38,9 @@ func newDefaultRuntime() *app.Runtime {
 			},
 			Drive:           googleapi.NewDrive,
 			Gmail:           googleapi.NewGmail,
-			PeopleContacts:  newPeopleContactsService,
-			PeopleDirectory: newPeopleDirectoryService,
-			PeopleOther:     newPeopleOtherContactsService,
+			PeopleContacts:  googleapi.NewPeopleContacts,
+			PeopleDirectory: googleapi.NewPeopleDirectory,
+			PeopleOther:     googleapi.NewPeopleOtherContacts,
 			Sheets:          googleapi.NewSheets,
 			Slides:          googleapi.NewSlides,
 			Zoom:            newZoomMeetingClient,
@@ -194,21 +194,21 @@ func peopleContactsService(ctx context.Context, account string) (*people.Service
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.PeopleContacts != nil {
 		return runtime.Services.PeopleContacts(ctx, account)
 	}
-	return newPeopleContactsService(ctx, account)
+	return googleapi.NewPeopleContacts(ctx, account)
 }
 
 func peopleDirectoryService(ctx context.Context, account string) (*people.Service, error) {
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.PeopleDirectory != nil {
 		return runtime.Services.PeopleDirectory(ctx, account)
 	}
-	return newPeopleDirectoryService(ctx, account)
+	return googleapi.NewPeopleDirectory(ctx, account)
 }
 
 func peopleOtherContactsService(ctx context.Context, account string) (*people.Service, error) {
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.PeopleOther != nil {
 		return runtime.Services.PeopleOther(ctx, account)
 	}
-	return newPeopleOtherContactsService(ctx, account)
+	return googleapi.NewPeopleOtherContacts(ctx, account)
 }
 
 func sheetsService(ctx context.Context, account string) (*sheets.Service, error) {
