@@ -24,7 +24,7 @@ func stubDriveService(svc *drive.Service) func(context.Context, string) (*drive.
 }
 
 func withDriveTestService(ctx context.Context, svc *drive.Service) context.Context {
-	return withDriveTestServiceFactory(ctx, stubDriveService(svc))
+	return withDriveTestOperations(ctx, svc, nil, nil)
 }
 
 func withDriveTestServiceFactory(ctx context.Context, factory app.DriveServiceFactory) context.Context {
@@ -36,6 +36,25 @@ func withDriveTestServiceFactory(ctx context.Context, factory app.DriveServiceFa
 		*runtime = *existing
 	}
 	runtime.Services.Drive = factory
+	return app.WithRuntime(ctx, runtime)
+}
+
+func withDriveTestOperations(
+	ctx context.Context,
+	svc *drive.Service,
+	download app.DriveDownloadFunc,
+	export app.DriveExportFunc,
+) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runtime := &app.Runtime{}
+	if existing, ok := app.FromContext(ctx); ok {
+		*runtime = *existing
+	}
+	runtime.Services.Drive = stubDriveService(svc)
+	runtime.Services.DriveDownload = download
+	runtime.Services.DriveExport = export
 	return app.WithRuntime(ctx, runtime)
 }
 

@@ -1,35 +1,26 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestDocsCreateCopyCat_JSON(t *testing.T) {
-	origNew := newDriveService
 	origDocs := newDocsService
-	origExport := driveExportDownload
-	t.Cleanup(func() {
-		newDriveService = origNew
-		newDocsService = origDocs
-		driveExportDownload = origExport
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
-	driveExportDownload = func(context.Context, *drive.Service, string, string) (*http.Response, error) {
+	export := func(context.Context, *drive.Service, string, string) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader("doc text")),
@@ -103,7 +94,6 @@ func TestDocsCreateCopyCat_JSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
 
 	docSvc, err := docs.NewService(context.Background(),
 		option.WithoutAuthentication(),
@@ -116,45 +106,33 @@ func TestDocsCreateCopyCat_JSON(t *testing.T) {
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	flags := &RootFlags{Account: "a@b.com"}
-	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
+	var stdout, stderr bytes.Buffer
+	ctx := withDriveTestOperations(newCmdRuntimeJSONOutputContext(t, &stdout, &stderr), svc, nil, export)
+
+	cmd := &DocsCreateCmd{}
+	if err := runKong(t, cmd, []string{"Doc"}, ctx, flags); err != nil {
+		t.Fatalf("create: %v", err)
 	}
-	ctx := ui.WithUI(context.Background(), u)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
-	_ = captureStdout(t, func() {
-		cmd := &DocsCreateCmd{}
-		if err := runKong(t, cmd, []string{"Doc"}, ctx, flags); err != nil {
-			t.Fatalf("create: %v", err)
-		}
-	})
+	stdout.Reset()
+	cmdCopy := &DocsCopyCmd{}
+	if err := runKong(t, cmdCopy, []string{"doc1", "Copy"}, ctx, flags); err != nil {
+		t.Fatalf("copy: %v", err)
+	}
 
-	_ = captureStdout(t, func() {
-		cmd := &DocsCopyCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "Copy"}, ctx, flags); err != nil {
-			t.Fatalf("copy: %v", err)
-		}
-	})
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1"}, ctx, flags); err != nil {
-			t.Fatalf("cat: %v", err)
-		}
-	})
-	if !strings.Contains(out, "doc text") {
-		t.Fatalf("unexpected cat output: %q", out)
+	stdout.Reset()
+	cmdCat := &DocsCatCmd{}
+	if err := runKong(t, cmdCat, []string{"doc1"}, ctx, flags); err != nil {
+		t.Fatalf("cat: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "doc text") {
+		t.Fatalf("unexpected cat output: %q", stdout.String())
 	}
 }
 
 func TestDocsCreate_Pageless(t *testing.T) {
-	origNew := newDriveService
 	origDocs := newDocsService
-	t.Cleanup(func() {
-		newDriveService = origNew
-		newDocsService = origDocs
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	var batchRequests [][]*docs.Request
 
@@ -195,7 +173,6 @@ func TestDocsCreate_Pageless(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
 
 	docSvc, err := docs.NewService(context.Background(),
 		option.WithoutAuthentication(),
@@ -208,18 +185,12 @@ func TestDocsCreate_Pageless(t *testing.T) {
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	flags := &RootFlags{Account: "a@b.com"}
-	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newDocsJSONContextWithDrive(t, driveSvc)
 
-	_ = captureStdout(t, func() {
-		cmd := &DocsCreateCmd{}
-		if err := runKong(t, cmd, []string{"Doc", "--pageless"}, ctx, flags); err != nil {
-			t.Fatalf("create pageless: %v", err)
-		}
-	})
+	cmd := &DocsCreateCmd{}
+	if err := runKong(t, cmd, []string{"Doc", "--pageless"}, ctx, flags); err != nil {
+		t.Fatalf("create pageless: %v", err)
+	}
 
 	if len(batchRequests) != 1 {
 		t.Fatalf("expected 1 pageless batch request, got %d", len(batchRequests))
@@ -233,25 +204,23 @@ func TestDocsCreate_Pageless(t *testing.T) {
 }
 
 func TestDocsCreate_DryRunDoesNotOpenService(t *testing.T) {
-	origNew := newDriveService
-	t.Cleanup(func() { newDriveService = origNew })
-
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("newDriveService should not be called during dry-run")
-		return nil, errors.New("unexpected drive service call")
+	var stdout, stderr bytes.Buffer
+	ctx := withDriveTestServiceFactory(
+		newCmdRuntimeJSONOutputContext(t, &stdout, &stderr),
+		func(context.Context, string) (*drive.Service, error) {
+			t.Fatal("Drive service should not be called during dry-run")
+			return nil, errors.New("unexpected Drive service call")
+		},
+	)
+	err := (&DocsCreateCmd{
+		Title:    "Dry Run",
+		Parent:   "folder1",
+		Pageless: true,
+	}).Run(ctx, &RootFlags{Account: "a@b.com", DryRun: true})
+	var exitErr *ExitError
+	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+		t.Fatalf("expected dry-run exit 0, got %v", err)
 	}
-
-	out := captureStdout(t, func() {
-		err := (&DocsCreateCmd{
-			Title:    "Dry Run",
-			Parent:   "folder1",
-			Pageless: true,
-		}).Run(newDocsJSONContext(t), &RootFlags{Account: "a@b.com", DryRun: true})
-		var exitErr *ExitError
-		if !errors.As(err, &exitErr) || exitErr.Code != 0 {
-			t.Fatalf("expected dry-run exit 0, got %v", err)
-		}
-	})
 
 	var payload struct {
 		DryRun  bool   `json:"dry_run"`
@@ -262,8 +231,8 @@ func TestDocsCreate_DryRunDoesNotOpenService(t *testing.T) {
 			Pageless bool       `json:"pageless"`
 		} `json:"request"`
 	}
-	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("decode dry-run: %v\nout=%q", err, out)
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode dry-run: %v\nout=%q", err, stdout.String())
 	}
 	if !payload.DryRun || payload.Op != "docs.create" || payload.Request.File.Name != "Dry Run" || payload.Request.Parent != "folder1" || !payload.Request.Pageless {
 		t.Fatalf("unexpected dry-run output: %#v", payload)
@@ -399,6 +368,24 @@ func newTabsTestServer(t *testing.T) (*docs.Service, func()) {
 	return docSvc, srv.Close
 }
 
+func runDocsCatCommand(t *testing.T, args []string, jsonMode bool) executeTestResult {
+	t.Helper()
+
+	var stdout, stderr bytes.Buffer
+	var ctx context.Context
+	if jsonMode {
+		ctx = newCmdRuntimeJSONOutputContext(t, &stdout, &stderr)
+	} else {
+		ctx = newCmdRuntimeOutputContext(t, &stdout, &stderr)
+	}
+	err := runKong(t, &DocsCatCmd{}, args, ctx, &RootFlags{Account: "a@b.com"})
+	return executeTestResult{
+		stdout: stdout.String(),
+		stderr: stderr.String(),
+		err:    err,
+	}
+}
+
 func TestDocsCat_DefaultNoTabs(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
@@ -407,16 +394,11 @@ func TestDocsCat_DefaultNoTabs(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1"}, ctx, flags); err != nil {
-			t.Fatalf("cat: %v", err)
-		}
-	})
+	result := runDocsCatCommand(t, []string{"doc1"}, false)
+	if result.err != nil {
+		t.Fatalf("cat: %v", result.err)
+	}
+	out := result.stdout
 	if !strings.Contains(out, "overview text") {
 		t.Fatalf("expected default tab text, got: %q", out)
 	}
@@ -433,16 +415,11 @@ func TestDocsCat_AllTabs(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--all-tabs"}, ctx, flags); err != nil {
-			t.Fatalf("cat --all-tabs: %v", err)
-		}
-	})
+	result := runDocsCatCommand(t, []string{"doc1", "--all-tabs"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --all-tabs: %v", result.err)
+	}
+	out := result.stdout
 	if !strings.Contains(out, "=== Tab: Overview ===") {
 		t.Fatalf("missing Overview tab header in: %q", out)
 	}
@@ -465,17 +442,11 @@ func TestDocsCat_AllTabs_JSON(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--all-tabs"}, ctx, flags); err != nil {
-			t.Fatalf("cat --all-tabs --json: %v", err)
-		}
-	})
+	execResult := runDocsCatCommand(t, []string{"doc1", "--all-tabs"}, true)
+	if execResult.err != nil {
+		t.Fatalf("cat --all-tabs --json: %v", execResult.err)
+	}
+	out := execResult.stdout
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -499,16 +470,11 @@ func TestDocsCat_Raw(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--raw"}, ctx, flags); err != nil {
-			t.Fatalf("cat --raw: %v", err)
-		}
-	})
+	execResult := runDocsCatCommand(t, []string{"doc1", "--raw"}, false)
+	if execResult.err != nil {
+		t.Fatalf("cat --raw: %v", execResult.err)
+	}
+	out := execResult.stdout
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -532,16 +498,11 @@ func TestDocsCat_Raw_AllTabs(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--raw", "--all-tabs"}, ctx, flags); err != nil {
-			t.Fatalf("cat --raw --all-tabs: %v", err)
-		}
-	})
+	execResult := runDocsCatCommand(t, []string{"doc1", "--raw", "--all-tabs"}, false)
+	if execResult.err != nil {
+		t.Fatalf("cat --raw --all-tabs: %v", execResult.err)
+	}
+	out := execResult.stdout
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -561,17 +522,12 @@ func TestDocsCat_SingleTab(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
 	// By title.
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--tab", "Details"}, ctx, flags); err != nil {
-			t.Fatalf("cat --tab Details: %v", err)
-		}
-	})
+	result := runDocsCatCommand(t, []string{"doc1", "--tab", "Details"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --tab Details: %v", result.err)
+	}
+	out := result.stdout
 	if !strings.Contains(out, "details text") {
 		t.Fatalf("expected details text, got: %q", out)
 	}
@@ -580,12 +536,11 @@ func TestDocsCat_SingleTab(t *testing.T) {
 	}
 
 	// By ID.
-	out = captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--tab", "t.child1"}, ctx, flags); err != nil {
-			t.Fatalf("cat --tab t.child1: %v", err)
-		}
-	})
+	result = runDocsCatCommand(t, []string{"doc1", "--tab", "t.child1"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --tab t.child1: %v", result.err)
+	}
+	out = result.stdout
 	if !strings.Contains(out, "child text") {
 		t.Fatalf("expected child text, got: %q", out)
 	}
@@ -599,17 +554,12 @@ func TestDocsCat_TabNotFound(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	cmd := &DocsCatCmd{}
-	err := runKong(t, cmd, []string{"doc1", "--tab", "Nonexistent"}, ctx, flags)
-	if err == nil || !strings.Contains(err.Error(), "tab not found") {
-		t.Fatalf("expected tab not found error, got: %v", err)
+	result := runDocsCatCommand(t, []string{"doc1", "--tab", "Nonexistent"}, false)
+	if result.err == nil || !strings.Contains(result.err.Error(), "tab not found") {
+		t.Fatalf("expected tab not found error, got: %v", result.err)
 	}
-	if !strings.Contains(err.Error(), "Overview") || !strings.Contains(err.Error(), "Details") {
-		t.Fatalf("expected available tab names in error, got: %v", err)
+	if !strings.Contains(result.err.Error(), "Overview") || !strings.Contains(result.err.Error(), "Details") {
+		t.Fatalf("expected available tab names in error, got: %v", result.err)
 	}
 }
 
@@ -621,17 +571,11 @@ func TestDocsCat_SingleTab_JSON(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--tab", "Overview"}, ctx, flags); err != nil {
-			t.Fatalf("cat --tab Overview --json: %v", err)
-		}
-	})
+	execResult := runDocsCatCommand(t, []string{"doc1", "--tab", "Overview"}, true)
+	if execResult.err != nil {
+		t.Fatalf("cat --tab Overview --json: %v", execResult.err)
+	}
+	out := execResult.stdout
 
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
@@ -654,16 +598,11 @@ func TestDocsCat_CaseInsensitiveTabTitle(t *testing.T) {
 	defer cleanup()
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	out := captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1", "--tab", "details"}, ctx, flags); err != nil {
-			t.Fatalf("cat --tab details (lowercase): %v", err)
-		}
-	})
+	result := runDocsCatCommand(t, []string{"doc1", "--tab", "details"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --tab details (lowercase): %v", result.err)
+	}
+	out := result.stdout
 	if !strings.Contains(out, "details text") {
 		t.Fatalf("case-insensitive match failed, got: %q", out)
 	}
@@ -711,16 +650,10 @@ func TestDocsCat_BackwardCompatibility(t *testing.T) {
 	}
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	_ = captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		if err := runKong(t, cmd, []string{"doc1"}, ctx, flags); err != nil {
-			t.Fatalf("cat: %v", err)
-		}
-	})
+	result := runDocsCatCommand(t, []string{"doc1"}, false)
+	if result.err != nil {
+		t.Fatalf("cat: %v", result.err)
+	}
 
 	if gotIncludeTabs {
 		t.Fatal("default cat should NOT send includeTabsContent=true")
@@ -752,14 +685,7 @@ func TestDocsCat_TabSendsIncludeTabsContent(t *testing.T) {
 	}
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
-	u, _ := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	ctx := ui.WithUI(context.Background(), u)
-
-	_ = captureStdout(t, func() {
-		cmd := &DocsCatCmd{}
-		_ = runKong(t, cmd, []string{"doc1", "--tab", "Overview"}, ctx, flags)
-	})
+	_ = runDocsCatCommand(t, []string{"doc1", "--tab", "Overview"}, false)
 
 	if !gotIncludeTabs {
 		t.Fatal("--tab should send includeTabsContent=true")
@@ -767,16 +693,10 @@ func TestDocsCat_TabSendsIncludeTabsContent(t *testing.T) {
 }
 
 func TestDocsCreateCopyCat_Text(t *testing.T) {
-	origNew := newDriveService
 	origDocs := newDocsService
-	origExport := driveExportDownload
-	t.Cleanup(func() {
-		newDriveService = origNew
-		newDocsService = origDocs
-		driveExportDownload = origExport
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
-	driveExportDownload = func(context.Context, *drive.Service, string, string) (*http.Response, error) {
+	export := func(context.Context, *drive.Service, string, string) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader("doc text")),
@@ -850,7 +770,6 @@ func TestDocsCreateCopyCat_Text(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
 
 	docSvc, err := docs.NewService(context.Background(),
 		option.WithoutAuthentication(),
@@ -863,30 +782,24 @@ func TestDocsCreateCopyCat_Text(t *testing.T) {
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	flags := &RootFlags{Account: "a@b.com"}
+	var stdout, stderr bytes.Buffer
+	ctx := withDriveTestOperations(newCmdRuntimeOutputContext(t, &stdout, &stderr), svc, nil, export)
 
-	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
+	createCmd := &DocsCreateCmd{}
+	if err := runKong(t, createCmd, []string{"Doc"}, ctx, flags); err != nil {
+		t.Fatalf("create: %v", err)
+	}
 
-		createCmd := &DocsCreateCmd{}
-		if err := runKong(t, createCmd, []string{"Doc"}, ctx, flags); err != nil {
-			t.Fatalf("create: %v", err)
-		}
+	copyCmd := &DocsCopyCmd{}
+	if err := runKong(t, copyCmd, []string{"doc1", "Copy"}, ctx, flags); err != nil {
+		t.Fatalf("copy: %v", err)
+	}
 
-		copyCmd := &DocsCopyCmd{}
-		if err := runKong(t, copyCmd, []string{"doc1", "Copy"}, ctx, flags); err != nil {
-			t.Fatalf("copy: %v", err)
-		}
-
-		catCmd := &DocsCatCmd{}
-		if err := runKong(t, catCmd, []string{"doc1"}, ctx, flags); err != nil {
-			t.Fatalf("cat: %v", err)
-		}
-	})
-	if !strings.Contains(out, "doc text") || !strings.Contains(out, "id\tdoc1") {
-		t.Fatalf("unexpected output: %q", out)
+	catCmd := &DocsCatCmd{}
+	if err := runKong(t, catCmd, []string{"doc1"}, ctx, flags); err != nil {
+		t.Fatalf("cat: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "doc text") || !strings.Contains(stdout.String(), "id\tdoc1") {
+		t.Fatalf("unexpected output: %q", stdout.String())
 	}
 }
