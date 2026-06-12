@@ -3,14 +3,12 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/docs/v1"
-	"google.golang.org/api/drive/v3"
 )
 
 // TestDocsWrite_MarkdownReplaceWithTab covers the issue #595 workaround:
@@ -20,11 +18,7 @@ import (
 // against the targeted tab.
 func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 	origDocs := newDocsService
-	origDrive := newDriveService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDriveService = origDrive
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	var batchRequests [][]*docs.Request
 	var includeTabsCalls int
@@ -56,13 +50,9 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 	defer cleanup()
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("markdown replace with --tab must not use the Drive converter")
-		return nil, errors.New("unexpected Drive service call")
-	}
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
 
 	markdown := "# Title\n\n**bold**\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
@@ -128,11 +118,7 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 
 func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
 	origDocs := newDocsService
-	origDrive := newDriveService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDriveService = origDrive
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	getCalls := 0
 	var batches []docs.BatchUpdateDocumentRequest
@@ -169,15 +155,11 @@ func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
 	defer cleanup()
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("table-cell breaks must use the local Docs renderer")
-		return nil, errors.New("unexpected Drive service call")
-	}
 
 	markdown := "| Value | Literal |\n| --- | --- |\n| Alice<br>Bob | `<br>` |"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
 		"doc1", "--text", markdown, "--replace", "--markdown",
-	}, newDocsJSONContext(t), &RootFlags{Account: "a@b.com"}); err != nil {
+	}, newDocsJSONContextWithoutDrive(t, "table-cell breaks must use the local Docs renderer"), &RootFlags{Account: "a@b.com"}); err != nil {
 		t.Fatalf("markdown replace with table breaks: %v", err)
 	}
 
@@ -208,11 +190,7 @@ func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
 
 func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *testing.T) {
 	origDocs := newDocsService
-	origDrive := newDriveService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDriveService = origDrive
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	var batchRequests [][]*docs.Request
 	var includeTabsCalls int
@@ -283,13 +261,9 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 	defer cleanup()
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("markdown replace with --tab must not use the Drive converter")
-		return nil, errors.New("unexpected Drive service call")
-	}
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
 
 	markdown := "# Files {#attachments}\n\n[Jump](#attachments)\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
@@ -329,11 +303,7 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 
 func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
 	origDocs := newDocsService
-	origDrive := newDriveService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDriveService = origDrive
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	var batchRequests [][]*docs.Request
 
@@ -361,13 +331,9 @@ func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
 	defer cleanup()
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("markdown replace with --tab must not use the Drive converter")
-		return nil, errors.New("unexpected Drive service call")
-	}
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
 
 	markdown := "- Parent\n  - Child\n    - Grandchild\n"
 	if err := runKong(t, &DocsWriteCmd{}, []string{
@@ -400,11 +366,7 @@ func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
 // is skipped — the Docs API rejects a delete range where end <= start.
 func TestDocsWrite_MarkdownReplaceWithTab_EmptyTab(t *testing.T) {
 	origDocs := newDocsService
-	origDrive := newDriveService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDriveService = origDrive
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	var batchRequests [][]*docs.Request
 
@@ -440,13 +402,9 @@ func TestDocsWrite_MarkdownReplaceWithTab_EmptyTab(t *testing.T) {
 	defer cleanup()
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("markdown replace with --tab must not use the Drive converter")
-		return nil, errors.New("unexpected Drive service call")
-	}
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := newDocsJSONContextWithoutDrive(t, "markdown replace with --tab must not use the Drive converter")
 
 	if err := runKong(t, &DocsWriteCmd{}, []string{
 		"doc1", "--text", "hello\n", "--replace", "--markdown", "--tab", "Blank",
@@ -470,11 +428,7 @@ func TestDocsWrite_MarkdownReplaceWithTab_EmptyTab(t *testing.T) {
 // issues any batchUpdate.
 func TestDocsWrite_MarkdownReplaceWithTab_TabNotFound(t *testing.T) {
 	origDocs := newDocsService
-	origDrive := newDriveService
-	t.Cleanup(func() {
-		newDocsService = origDocs
-		newDriveService = origDrive
-	})
+	t.Cleanup(func() { newDocsService = origDocs })
 
 	var batchUpdates int
 
@@ -488,13 +442,9 @@ func TestDocsWrite_MarkdownReplaceWithTab_TabNotFound(t *testing.T) {
 	defer cleanup()
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		t.Fatal("tab-not-found path must not invoke Drive")
-		return nil, errors.New("unexpected Drive service call")
-	}
 
 	flags := &RootFlags{Account: "a@b.com"}
-	ctx := newDocsJSONContext(t)
+	ctx := newDocsJSONContextWithoutDrive(t, "tab-not-found path must not invoke Drive")
 
 	err := runKong(t, &DocsWriteCmd{}, []string{
 		"doc1", "--text", "x", "--replace", "--markdown", "--tab", "Missing",

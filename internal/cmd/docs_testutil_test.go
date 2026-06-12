@@ -3,12 +3,14 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"google.golang.org/api/docs/v1"
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -53,6 +55,22 @@ func newDocsCmdOutputContext(t *testing.T) (context.Context, *bytes.Buffer) {
 func newDocsJSONContext(t *testing.T) context.Context {
 	t.Helper()
 	return outfmt.WithMode(newDocsCmdContext(t), outfmt.Mode{JSON: true})
+}
+
+func newDocsJSONContextWithDrive(t *testing.T, svc *drive.Service) context.Context {
+	t.Helper()
+	return withDriveTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+}
+
+func newDocsJSONContextWithoutDrive(t *testing.T, message string) context.Context {
+	t.Helper()
+	return withDriveTestServiceFactory(
+		newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard),
+		func(context.Context, string) (*drive.Service, error) {
+			t.Fatal(message)
+			return nil, errors.New("unexpected Drive service call")
+		},
+	)
 }
 
 func docBodyWithText(text string) map[string]any {
