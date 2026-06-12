@@ -21,27 +21,13 @@ func TestBackupInitDryRunDoesNotWriteConfigOrRepo(t *testing.T) {
 	repoPath := filepath.Join(dir, "repo")
 
 	var stdout bytes.Buffer
-	origStdout := os.Stdout
-	readPipe, writePipe, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatalf("pipe: %v", pipeErr)
-	}
-	os.Stdout = writePipe
-	t.Cleanup(func() {
-		os.Stdout = origStdout
-	})
 	err := (&BackupInitCmd{
 		backupFlags: backupFlags{
 			Config: configPath,
 			Repo:   repoPath,
 			NoPush: true,
 		},
-	}).Run(newCmdJSONOutputContext(t, &stdout, nil), &RootFlags{DryRun: true, NoInput: true})
-	_ = writePipe.Close()
-	os.Stdout = origStdout
-	if _, copyErr := io.Copy(&stdout, readPipe); copyErr != nil {
-		t.Fatalf("read stdout: %v", copyErr)
-	}
+	}).Run(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), &RootFlags{DryRun: true, NoInput: true})
 
 	var exitErr *ExitError
 	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
@@ -87,7 +73,7 @@ func TestBackupInitNoPushUsesLocalRepoWithoutDefaultRemote(t *testing.T) {
 			Identity: identityPath,
 			NoPush:   true,
 		},
-	}).Run(newCmdJSONOutputContext(t, &stdout, io.Discard), &RootFlags{NoInput: true})
+	}).Run(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), &RootFlags{NoInput: true})
 	if err != nil {
 		t.Fatalf("BackupInitCmd.Run: %v", err)
 	}
@@ -132,7 +118,7 @@ func TestBackupInitNoPushPreservesConfiguredRemote(t *testing.T) {
 					Config: configPath,
 					NoPush: true,
 				},
-			}).Run(newCmdJSONOutputContext(t, io.Discard, io.Discard), &RootFlags{NoInput: true})
+			}).Run(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), &RootFlags{NoInput: true})
 			if err != nil {
 				t.Fatalf("BackupInitCmd.Run: %v", err)
 			}
@@ -144,6 +130,22 @@ func TestBackupInitNoPushPreservesConfiguredRemote(t *testing.T) {
 				t.Fatalf("--no-push init changed configured remote: %q", cfg.Remote)
 			}
 		})
+	}
+}
+
+func TestWriteBackupResultUsesRuntimeOutput(t *testing.T) {
+	var stdout bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
+	if err := writeBackupResult(ctx, backup.Result{Repo: "/tmp/repo", Changed: true, Shards: 2}); err != nil {
+		t.Fatalf("write result: %v", err)
+	}
+
+	var result backup.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if result.Repo != "/tmp/repo" || !result.Changed || result.Shards != 2 {
+		t.Fatalf("result = %#v", result)
 	}
 }
 

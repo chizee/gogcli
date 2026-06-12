@@ -46,7 +46,7 @@ func (c *BackupCatCmd) Run(ctx context.Context) error {
 		}
 		return os.WriteFile(out, data, 0o600)
 	}
-	_, err = os.Stdout.Write(data)
+	_, err = stdoutWriter(ctx).Write(data)
 	return err
 }
 
@@ -150,7 +150,7 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 	}
 	result.Files = files
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, result)
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), result)
 	}
 	u.Out().Linef("out\t%s", result.Out)
 	u.Out().Linef("repo\t%s", result.Repo)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -112,7 +111,7 @@ func (c *BackupInitCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"repo":      cfg.Repo,
 			"remote":    cfg.Remote,
 			"identity":  cfg.Identity,
@@ -393,7 +392,7 @@ func (c *BackupStatusCmd) Run(ctx context.Context) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"repo": repo, "manifest": manifest})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"repo": repo, "manifest": manifest})
 	}
 	u := ui.FromContext(ctx)
 	u.Out().Linef("repo\t%s", repo)
@@ -445,7 +444,7 @@ func mergeBackupSnapshots(snapshots ...backup.Snapshot) backup.Snapshot {
 
 func writeBackupResult(ctx context.Context, result backup.Result) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, result)
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), result)
 	}
 	u := ui.FromContext(ctx)
 	u.Out().Linef("repo\t%s", result.Repo)
