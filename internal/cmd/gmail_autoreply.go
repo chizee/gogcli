@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -128,7 +127,7 @@ func (c *GmailAutoReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"autoReply": summary})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"autoReply": summary})
 	}
 	if len(summary.Results) == 0 {
 		u.Out().Println("No matching messages")

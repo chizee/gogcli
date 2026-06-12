@@ -7,7 +7,20 @@ import (
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
+
+	"github.com/steipete/gogcli/internal/app"
 )
+
+func executeGmailSettingsValidation(t *testing.T, args []string) error {
+	t.Helper()
+	result := executeWithTestRuntime(t, args, &app.Runtime{Services: app.Services{
+		Gmail: func(context.Context, string) (*gmail.Service, error) {
+			t.Fatal("expected validation to fail before creating gmail service")
+			return nil, errors.New("unexpected gmail service call")
+		},
+	}})
+	return result.err
+}
 
 func TestGmailSettingsEmailValidation(t *testing.T) {
 	testCases := []struct {
@@ -38,13 +51,6 @@ func TestGmailSettingsEmailValidation(t *testing.T) {
 }
 
 func TestGmailForwarding_InvalidEmailFailsBeforeDryRun(t *testing.T) {
-	origNew := newGmailService
-	t.Cleanup(func() { newGmailService = origNew })
-	newGmailService = func(context.Context, string) (*gmail.Service, error) {
-		t.Fatalf("expected validation to fail before creating gmail service")
-		return nil, errors.New("unexpected gmail service call")
-	}
-
 	testCases := [][]string{
 		{"--account", "a@b.com", "--dry-run", "gmail", "forwarding", "create", "nope"},
 		{"--account", "a@b.com", "--dry-run", "gmail", "forwarding", "delete", "nope"},
@@ -52,25 +58,16 @@ func TestGmailForwarding_InvalidEmailFailsBeforeDryRun(t *testing.T) {
 	}
 	for _, args := range testCases {
 		t.Run(strings.Join(args[4:], "_"), func(t *testing.T) {
-			_ = captureStderr(t, func() {
-				err := Execute(args)
-				var exitErr *ExitError
-				if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), "invalid forwardingEmail") {
-					t.Fatalf("unexpected err: %v", err)
-				}
-			})
+			err := executeGmailSettingsValidation(t, args)
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), "invalid forwardingEmail") {
+				t.Fatalf("unexpected err: %v", err)
+			}
 		})
 	}
 }
 
 func TestGmailDelegates_InvalidEmailFailsBeforeDryRun(t *testing.T) {
-	origNew := newGmailService
-	t.Cleanup(func() { newGmailService = origNew })
-	newGmailService = func(context.Context, string) (*gmail.Service, error) {
-		t.Fatalf("expected validation to fail before creating gmail service")
-		return nil, errors.New("unexpected gmail service call")
-	}
-
 	testCases := [][]string{
 		{"--account", "a@b.com", "--dry-run", "gmail", "delegates", "add", "nope"},
 		{"--account", "a@b.com", "--dry-run", "gmail", "delegates", "remove", "nope"},
@@ -78,25 +75,16 @@ func TestGmailDelegates_InvalidEmailFailsBeforeDryRun(t *testing.T) {
 	}
 	for _, args := range testCases {
 		t.Run(strings.Join(args[4:], "_"), func(t *testing.T) {
-			_ = captureStderr(t, func() {
-				err := Execute(args)
-				var exitErr *ExitError
-				if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), "invalid delegateEmail") {
-					t.Fatalf("unexpected err: %v", err)
-				}
-			})
+			err := executeGmailSettingsValidation(t, args)
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), "invalid delegateEmail") {
+				t.Fatalf("unexpected err: %v", err)
+			}
 		})
 	}
 }
 
 func TestGmailSendAs_InvalidEmailFailsBeforeDryRun(t *testing.T) {
-	origNew := newGmailService
-	t.Cleanup(func() { newGmailService = origNew })
-	newGmailService = func(context.Context, string) (*gmail.Service, error) {
-		t.Fatalf("expected validation to fail before creating gmail service")
-		return nil, errors.New("unexpected gmail service call")
-	}
-
 	testCases := []struct {
 		name string
 		args []string
@@ -111,13 +99,11 @@ func TestGmailSendAs_InvalidEmailFailsBeforeDryRun(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_ = captureStderr(t, func() {
-				err := Execute(tc.args)
-				var exitErr *ExitError
-				if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), tc.want) {
-					t.Fatalf("unexpected err: %v", err)
-				}
-			})
+			err := executeGmailSettingsValidation(t, tc.args)
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unexpected err: %v", err)
+			}
 		})
 	}
 }

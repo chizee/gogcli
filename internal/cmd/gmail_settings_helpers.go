@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -26,7 +25,7 @@ func loadGmailSettingsService(ctx context.Context, flags *RootFlags) (*gmail.Ser
 
 func writeGmailEmailStatusList(ctx context.Context, jsonKey string, raw any, emptyMessage string, rows []gmailEmailStatusRow) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{jsonKey: raw})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{jsonKey: raw})
 	}
 
 	u := ui.FromContext(ctx)
@@ -46,7 +45,7 @@ func writeGmailEmailStatusList(ctx context.Context, jsonKey string, raw any, emp
 
 func writeGmailEmailStatusItem(ctx context.Context, jsonKey string, raw any, emailKey string, row gmailEmailStatusRow) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{jsonKey: raw})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{jsonKey: raw})
 	}
 
 	u := ui.FromContext(ctx)
@@ -57,7 +56,7 @@ func writeGmailEmailStatusItem(ctx context.Context, jsonKey string, raw any, ema
 
 func writeGmailEmailStatusCreateResult(ctx context.Context, jsonKey string, raw any, emailKey string, row gmailEmailStatusRow, successMessage string, notes ...string) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{jsonKey: raw})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{jsonKey: raw})
 	}
 
 	u := ui.FromContext(ctx)

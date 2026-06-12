@@ -3,22 +3,13 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"google.golang.org/api/gmail/v1"
-	"google.golang.org/api/option"
-
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestGmailSettings_TextPaths(t *testing.T) {
-	origNew := newGmailService
-	t.Cleanup(func() { newGmailService = origNew })
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
@@ -97,76 +88,39 @@ func TestGmailSettings_TextPaths(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	svc, err := gmail.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
+	svc := newGmailServiceFromServer(t, srv)
+	commands := []struct {
+		name string
+		args []string
+	}{
+		{name: "delegates list", args: []string{"--plain", "--account", "a@b.com", "gmail", "delegates", "list"}},
+		{name: "delegates get", args: []string{"--plain", "--account", "a@b.com", "gmail", "delegates", "get", "d@b.com"}},
+		{name: "delegates add", args: []string{"--plain", "--force", "--account", "a@b.com", "gmail", "delegates", "add", "d@b.com"}},
+		{name: "delegates remove", args: []string{"--plain", "--force", "--account", "a@b.com", "gmail", "delegates", "remove", "d@b.com"}},
+		{name: "forwarding list", args: []string{"--plain", "--account", "a@b.com", "gmail", "forwarding", "list"}},
+		{name: "forwarding get", args: []string{"--plain", "--account", "a@b.com", "gmail", "forwarding", "get", "f@b.com"}},
+		{name: "forwarding create", args: []string{"--plain", "--account", "a@b.com", "gmail", "forwarding", "create", "f@b.com"}},
+		{name: "forwarding delete", args: []string{"--plain", "--force", "--account", "a@b.com", "gmail", "forwarding", "delete", "f@b.com"}},
+		{name: "vacation get", args: []string{"--plain", "--account", "a@b.com", "gmail", "vacation", "get"}},
+		{name: "vacation update", args: []string{
+			"--plain", "--account", "a@b.com", "gmail", "vacation", "update",
+			"--enable",
+			"--subject", "S2",
+			"--body", "<b>hi</b>",
+			"--start", "2025-01-01T00:00:00Z",
+			"--end", "2025-01-02T00:00:00Z",
+			"--contacts-only",
+		}},
 	}
-	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
-
-	flags := &RootFlags{Account: "a@b.com", Force: true}
-
-	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := ui.WithUI(context.Background(), u)
-
-	if err := runKong(t, &GmailDelegatesListCmd{}, []string{}, ctx, flags); err != nil {
-		t.Fatalf("delegates list: %v", err)
-	}
-
-	if err := runKong(t, &GmailDelegatesGetCmd{}, []string{"d@b.com"}, ctx, flags); err != nil {
-		t.Fatalf("delegates get: %v", err)
-	}
-
-	if err := runKong(t, &GmailDelegatesAddCmd{}, []string{"d@b.com"}, ctx, flags); err != nil {
-		t.Fatalf("delegates add: %v", err)
-	}
-
-	if err := runKong(t, &GmailDelegatesRemoveCmd{}, []string{"d@b.com"}, ctx, flags); err != nil {
-		t.Fatalf("delegates remove: %v", err)
-	}
-
-	if err := runKong(t, &GmailForwardingListCmd{}, []string{}, ctx, flags); err != nil {
-		t.Fatalf("forwarding list: %v", err)
-	}
-
-	if err := runKong(t, &GmailForwardingGetCmd{}, []string{"f@b.com"}, ctx, flags); err != nil {
-		t.Fatalf("forwarding get: %v", err)
-	}
-
-	if err := runKong(t, &GmailForwardingCreateCmd{}, []string{"f@b.com"}, ctx, flags); err != nil {
-		t.Fatalf("forwarding create: %v", err)
-	}
-
-	if err := runKong(t, &GmailForwardingDeleteCmd{}, []string{"f@b.com"}, ctx, flags); err != nil {
-		t.Fatalf("forwarding delete: %v", err)
-	}
-
-	if err := runKong(t, &GmailVacationGetCmd{}, []string{}, ctx, flags); err != nil {
-		t.Fatalf("vacation get: %v", err)
-	}
-
-	if err := runKong(t, &GmailVacationUpdateCmd{}, []string{
-		"--enable",
-		"--subject", "S2",
-		"--body", "<b>hi</b>",
-		"--start", "2025-01-01T00:00:00Z",
-		"--end", "2025-01-02T00:00:00Z",
-		"--contacts-only",
-	}, ctx, flags); err != nil {
-		t.Fatalf("vacation update: %v", err)
+	for _, command := range commands {
+		result := executeWithGmailTestService(t, command.args, svc)
+		if result.err != nil {
+			t.Fatalf("%s: %v\nstderr=%q", command.name, result.err, result.stderr)
+		}
 	}
 }
 
 func TestGmailSettings_JSONEmptyListsUseArrays(t *testing.T) {
-	origNew := newGmailService
-	t.Cleanup(func() { newGmailService = origNew })
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/forwardingAddresses"):
@@ -181,66 +135,48 @@ func TestGmailSettings_JSONEmptyListsUseArrays(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	svc, err := gmail.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
-
+	svc := newGmailServiceFromServer(t, srv)
 	tests := []struct {
 		name string
-		run  func(context.Context, *RootFlags) error
+		args []string
 		key  string
 	}{
 		{
 			name: "forwarding",
-			run: func(ctx context.Context, flags *RootFlags) error {
-				return runKong(t, &GmailForwardingListCmd{}, []string{}, ctx, flags)
-			},
-			key: "forwardingAddresses",
+			args: []string{"--json", "--account", "a@b.com", "gmail", "forwarding", "list"},
+			key:  "forwardingAddresses",
 		},
 		{
 			name: "delegates",
-			run: func(ctx context.Context, flags *RootFlags) error {
-				return runKong(t, &GmailDelegatesListCmd{}, []string{}, ctx, flags)
-			},
-			key: "delegates",
+			args: []string{"--json", "--account", "a@b.com", "gmail", "delegates", "list"},
+			key:  "delegates",
 		},
 		{
 			name: "sendAs",
-			run: func(ctx context.Context, flags *RootFlags) error {
-				return runKong(t, &GmailSendAsListCmd{}, []string{}, ctx, flags)
-			},
-			key: "sendAs",
+			args: []string{"--json", "--account", "a@b.com", "gmail", "sendas", "list"},
+			key:  "sendAs",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var runErr error
-			stdout := captureStdout(t, func() {
-				runErr = tt.run(newCmdJSONContext(t), &RootFlags{Account: "a@b.com", JSON: true})
-			})
-			if runErr != nil {
-				t.Fatalf("run: %v", runErr)
+			result := executeWithGmailTestService(t, tt.args, svc)
+			if result.err != nil {
+				t.Fatalf("run: %v\nstderr=%q", result.err, result.stderr)
 			}
 			var got map[string][]json.RawMessage
-			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
-				t.Fatalf("json output %q: %v", stdout, err)
+			if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+				t.Fatalf("json output %q: %v", result.stdout, err)
 			}
 			items, ok := got[tt.key]
 			if !ok {
-				t.Fatalf("missing key %q in %s", tt.key, stdout)
+				t.Fatalf("missing key %q in %s", tt.key, result.stdout)
 			}
 			if items == nil {
-				t.Fatalf("%s is nil in %s", tt.key, stdout)
+				t.Fatalf("%s is nil in %s", tt.key, result.stdout)
 			}
 			if len(items) != 0 {
-				t.Fatalf("%s len = %d in %s", tt.key, len(items), stdout)
+				t.Fatalf("%s len = %d in %s", tt.key, len(items), result.stdout)
 			}
 		})
 	}
