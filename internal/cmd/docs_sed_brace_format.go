@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"strconv"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
@@ -285,92 +284,6 @@ func buildBraceBreakRequests(be *braceExpr, insertIdx int64) []*docs.Request {
 	}
 
 	return requests
-}
-
-// braceExprToFormats converts a braceExpr to the existing format string slice
-// for backward compatibility with existing code paths.
-func braceExprToFormats(be *braceExpr) []string {
-	if be == nil {
-		return nil
-	}
-
-	var formats []string
-
-	// Boolean flags
-	if be.Bold != nil && *be.Bold {
-		formats = append(formats, "bold")
-	}
-	if be.Italic != nil && *be.Italic {
-		formats = append(formats, "italic")
-	}
-	if be.Underline != nil && *be.Underline {
-		formats = append(formats, "underline")
-	}
-	if be.Strike != nil && *be.Strike {
-		formats = append(formats, "strikethrough")
-	}
-	if be.Code != nil && *be.Code {
-		formats = append(formats, "code")
-	}
-	if be.Sup != nil && *be.Sup {
-		formats = append(formats, "superscript")
-	}
-	if be.Sub != nil && *be.Sub {
-		formats = append(formats, "subscript")
-	}
-	if be.SmallCaps != nil && *be.SmallCaps {
-		formats = append(formats, "smallcaps")
-	}
-
-	// Value flags
-	if be.Font != "" {
-		formats = append(formats, "font:"+be.Font)
-	}
-	if be.Size > 0 {
-		formats = append(formats, "size:"+formatFloat(be.Size))
-	}
-	if be.Color != "" {
-		formats = append(formats, "color:"+be.Color)
-	}
-	if be.Bg != "" {
-		formats = append(formats, "bg:"+be.Bg)
-	}
-	if be.URL != "" {
-		formats = append(formats, "link:"+be.URL)
-	}
-
-	// Heading
-	if be.Heading != "" {
-		level := be.Heading
-		switch level {
-		case "t":
-			formats = append(formats, "title")
-		case "s":
-			formats = append(formats, "subtitle")
-		case "0":
-			formats = append(formats, "normal")
-		default:
-			formats = append(formats, "heading"+level)
-		}
-	}
-
-	// Alignment
-	if be.Align != "" {
-		formats = append(formats, "align:"+be.Align)
-	}
-
-	return formats
-}
-
-// formatFloat formats a float64 without unnecessary trailing zeros.
-func formatFloat(f float64) string {
-	// Check if it's a whole number
-	if f == float64(int64(f)) {
-		return strconv.FormatInt(int64(f), 10)
-	}
-	// Format with precision, trim trailing zeros
-	s := strconv.FormatFloat(f, 'f', -1, 64)
-	return s
 }
 
 // hasBraceTextFormat checks if braceExpr has formatting that requires text styling.

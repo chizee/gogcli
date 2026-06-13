@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -139,6 +140,63 @@ func TestRunAddressedSubstituteUsesUTF16AndSkipsTablePreview(t *testing.T) {
 	}
 	if len(captured) != 0 {
 		t.Fatalf("table preview generated requests: %#v", captured)
+	}
+}
+
+func TestRunManualInnerFormatsFinalRangesAfterLengthChanges(t *testing.T) {
+	document := &docs.Document{
+		DocumentId: "test-doc-id",
+		Body: &docs.Body{Content: []*docs.StructuralElement{{
+			StartIndex: 1,
+			EndIndex:   9,
+			Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
+				StartIndex: 1,
+				EndIndex:   9,
+				TextRun:    &docs.TextRun{Content: "foo foo\n"},
+			}}},
+		}}},
+	}
+	var captured []*docs.Request
+	server := mockDocsServerAdvanced(t, document, func(requests []*docs.Request) {
+		captured = append(captured, requests...)
+	})
+	defer server.Close()
+	service, err := docs.NewService(
+		context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(server.Client()),
+		option.WithEndpoint(server.URL+"/"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	command := &DocsSedCmd{}
+	count, _, err := command.runManualInner(
+		context.Background(),
+		service,
+		document.DocumentId,
+		sedExpr{pattern: "foo", replacement: "**longer**", global: true},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("count = %d, want 2", count)
+	}
+
+	var ranges [][2]int64
+	for _, request := range captured {
+		if request.UpdateTextStyle != nil {
+			ranges = append(ranges, [2]int64{
+				request.UpdateTextStyle.Range.StartIndex,
+				request.UpdateTextStyle.Range.EndIndex,
+			})
+		}
+	}
+	want := [][2]int64{{1, 7}, {8, 14}}
+	if !reflect.DeepEqual(ranges, want) {
+		t.Fatalf("format ranges = %v, want %v", ranges, want)
 	}
 }
 

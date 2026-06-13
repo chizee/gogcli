@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/docs/v1"
+
+	"github.com/steipete/gogcli/internal/docssed"
 )
 
 // =============================================================================
@@ -367,7 +369,7 @@ func TestApplyBreakPhase_WithBreak(t *testing.T) {
 
 	brace, _ := parseBraceExpr("+=page")
 	expr := sedExpr{pattern: "content", replacement: "content", brace: brace}
-	frs := []formatRange{{start: 1, end: 8}}
+	frs := []docssed.FormatIntent{{StartIndex: 1, EndIndex: 8}}
 	err := applyBreakPhase(context.Background(), svc, "test-doc", expr, frs)
 	assert.NoError(t, err)
 }

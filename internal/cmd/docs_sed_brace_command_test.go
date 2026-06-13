@@ -58,15 +58,15 @@ func TestClassifyMatch_BraceImage(t *testing.T) {
 	}}}}
 	planner, err := docssed.NewMatchPlanner(semanticExpressionFromSedExpr(expression))
 	require.NoError(t, err)
-	matches := findDocMatches(doc, planner)
-	require.Len(t, matches, 1)
-	match := matches[0]
-	assert.NotNil(t, match.image)
-	assert.Equal(t, "https://example.com/img.png", match.image.URL)
-	assert.Equal(t, 100, match.image.Width)
-	assert.Equal(t, 50, match.image.Height)
-	assert.Equal(t, int64(10), match.start)
-	assert.Equal(t, int64(15), match.end)
+	actions := findDocActions(doc, planner)
+	require.Len(t, actions, 1)
+	action := actions[0]
+	assert.NotNil(t, action.Replacement.Image)
+	assert.Equal(t, "https://example.com/img.png", action.Replacement.Image.URL)
+	assert.Equal(t, 100, action.Replacement.Image.Width)
+	assert.Equal(t, 50, action.Replacement.Image.Height)
+	assert.Equal(t, int64(10), action.StartIndex)
+	assert.Equal(t, int64(15), action.EndIndex)
 }
 
 func TestClassifyMatch_PlainText(t *testing.T) {
@@ -83,9 +83,9 @@ func TestClassifyMatch_PlainText(t *testing.T) {
 	}}}}
 	planner, err := docssed.NewMatchPlanner(docssed.Expression{Pattern: "foo", Replacement: "bar"})
 	require.NoError(t, err)
-	matches := findDocMatches(doc, planner)
-	require.Len(t, matches, 1)
-	match := matches[0]
-	assert.Nil(t, match.image)
-	assert.Equal(t, "bar", match.newText)
+	actions := findDocActions(doc, planner)
+	require.Len(t, actions, 1)
+	action := actions[0]
+	assert.Nil(t, action.Replacement.Image)
+	assert.Equal(t, "bar", action.Replacement.Text)
 }

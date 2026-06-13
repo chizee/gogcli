@@ -221,11 +221,11 @@ func TestFindDocMatches_UTF16Offsets(t *testing.T) {
 
 	planner, err := docssed.NewMatchPlanner(docssed.Expression{Pattern: "foo", Replacement: "${0}"})
 	require.NoError(t, err)
-	matches := findDocMatches(doc, planner)
-	require.Len(t, matches, 1)
-	assert.Equal(t, int64(5), matches[0].start)
-	assert.Equal(t, int64(8), matches[0].end)
-	assert.Equal(t, "foo", matches[0].newText)
+	actions := findDocActions(doc, planner)
+	require.Len(t, actions, 1)
+	assert.Equal(t, int64(5), actions[0].StartIndex)
+	assert.Equal(t, int64(8), actions[0].EndIndex)
+	assert.Equal(t, "foo", actions[0].Replacement.Text)
 }
 
 func TestRunManualInner_WithFormatting(t *testing.T) {
@@ -880,7 +880,7 @@ func TestCanBatchCell_MoreCases(t *testing.T) {
 }
 
 // =============================================================================
-// findDocMatches coverage — multiple paragraphs, table content
+// findDocActions coverage — multiple paragraphs, table content
 // =============================================================================
 
 func TestFindDocMatches_AcrossElements(t *testing.T) {
@@ -891,8 +891,8 @@ func TestFindDocMatches_AcrossElements(t *testing.T) {
 	expr := sedExpr{pattern: "Hello", replacement: "Hi", global: true}
 	planner, err := docssed.NewMatchPlanner(semanticExpressionFromSedExpr(expr))
 	require.NoError(t, err)
-	matches := findDocMatches(doc, planner)
-	assert.Equal(t, 2, len(matches))
+	actions := findDocActions(doc, planner)
+	assert.Equal(t, 2, len(actions))
 }
 
 func TestFindDocMatches_InTable(t *testing.T) {
@@ -900,8 +900,8 @@ func TestFindDocMatches_InTable(t *testing.T) {
 	expr := sedExpr{pattern: "hello", replacement: "HI", global: true}
 	planner, err := docssed.NewMatchPlanner(semanticExpressionFromSedExpr(expr))
 	require.NoError(t, err)
-	matches := findDocMatches(doc, planner)
-	assert.Equal(t, 1, len(matches))
+	actions := findDocActions(doc, planner)
+	assert.Equal(t, 1, len(actions))
 }
 
 // =============================================================================

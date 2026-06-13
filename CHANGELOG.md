@@ -14,6 +14,7 @@
 - Docs: make `docs cell-style` table, row, and column coordinates one-based like adjacent table commands, with negative table indexes counting from the end.
 - Docs: make positional `docs sed` image selectors deterministic by ordering anchored positioned images with document content and unanchored positioned images by object ID.
 - Docs: make addressed `docs sed` substitutions honor nth-match flags, use UTF-16 document indices, and ignore table or table-of-contents preview text instead of producing invalid mutation ranges.
+- Docs: keep `docs sed` formatting, footnote, break, and structural targets aligned when earlier image or text replacements change document length.
 - Auth: clarify that `auth import` always requires a refresh-token source and only optionally accepts a current access token plus expiry.
 - Calendar: make alias set/unset dry-runs preview config changes without writing `config.json`.
 - Dry-run safety: keep Drive, Contacts, Slides thumbnail, backup plaintext, OAuth token, Gmail filter, Photos, and Photos Picker downloads/exports offline and prevent local file or secret output.
