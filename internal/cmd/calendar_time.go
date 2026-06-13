@@ -29,7 +29,7 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var loc *time.Location
 
 	// Check for explicitly configured timezone (flag, env, or config)
-	loc, err = getConfiguredTimezone(c.Timezone, stderrWriter(ctx))
+	loc, err = getConfiguredTimezone(ctx, c.Timezone, stderrWriter(ctx))
 	if err != nil {
 		return err
 	}
