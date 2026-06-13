@@ -136,7 +136,7 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 	openSecretsStore := func() (secrets.Store, error) { return store, nil }
 
 	cmd := &AuthAddCmd{Email: "test@example.com", ServicesCSV: "gmail"}
-	ctx := app.WithRuntime(context.Background(), runtimeWithAuthTestOperations(
+	ctx := app.WithRuntime(withTestClientResolver(context.Background()), runtimeWithAuthTestOperations(
 		openSecretsStore, authorizeGoogle, ensureKeychainAccess, fetchAuthorizedIdentity,
 	))
 	err := cmd.Run(ctx, &RootFlags{})

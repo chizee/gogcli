@@ -2,10 +2,9 @@ package authclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/steipete/gogcli/internal/config"
 )
 
 type (
@@ -15,6 +14,8 @@ type (
 )
 
 type ClientResolver func(email string, override string) (string, error)
+
+var errClientResolverRequired = errors.New("client resolver is required")
 
 func WithClient(ctx context.Context, client string) context.Context {
 	client = strings.TrimSpace(client)
@@ -71,30 +72,21 @@ func WithClientResolver(ctx context.Context, resolver ClientResolver) context.Co
 }
 
 func ResolveClient(ctx context.Context, email string) (string, error) {
-	override := ClientOverrideFromContext(ctx)
-	if resolver := clientResolverFromContext(ctx); resolver != nil {
-		client, err := resolver(email, override)
-		if err != nil {
-			return "", fmt.Errorf("resolve client: %w", err)
-		}
-
-		return client, nil
-	}
-
-	return ResolveClientWithOverride(email, override)
+	return ResolveClientWithOverride(ctx, email, ClientOverrideFromContext(ctx))
 }
 
-func ResolveClientWithOverrideContext(ctx context.Context, email string, override string) (string, error) {
-	if resolver := clientResolverFromContext(ctx); resolver != nil {
-		client, err := resolver(email, override)
-		if err != nil {
-			return "", fmt.Errorf("resolve client: %w", err)
-		}
-
-		return client, nil
+func ResolveClientWithOverride(ctx context.Context, email string, override string) (string, error) {
+	resolver := clientResolverFromContext(ctx)
+	if resolver == nil {
+		return "", errClientResolverRequired
 	}
 
-	return ResolveClientWithOverride(email, override)
+	client, err := resolver(email, override)
+	if err != nil {
+		return "", fmt.Errorf("resolve client: %w", err)
+	}
+
+	return client, nil
 }
 
 func clientResolverFromContext(ctx context.Context) ClientResolver {
@@ -105,18 +97,4 @@ func clientResolverFromContext(ctx context.Context) ClientResolver {
 	resolver, _ := ctx.Value(resolverKey{}).(ClientResolver)
 
 	return resolver
-}
-
-func ResolveClientWithOverride(email string, override string) (string, error) {
-	cfg, err := config.ReadConfig()
-	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
-	}
-
-	client, err := config.ResolveClientForAccount(cfg, email, override)
-	if err != nil {
-		return "", fmt.Errorf("resolve client: %w", err)
-	}
-
-	return client, nil
 }

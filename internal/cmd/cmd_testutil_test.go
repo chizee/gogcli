@@ -10,6 +10,8 @@ import (
 	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/app"
+	"github.com/steipete/gogcli/internal/authclient"
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/secrets"
 	"github.com/steipete/gogcli/internal/ui"
@@ -22,7 +24,7 @@ func newCmdOutputContext(t *testing.T, stdout, stderr io.Writer) context.Context
 	if err != nil {
 		t.Fatalf("ui.New: %v", err)
 	}
-	return ui.WithUI(context.Background(), u)
+	return withTestClientResolver(ui.WithUI(context.Background(), u))
 }
 
 func newCmdRuntimeOutputContext(t *testing.T, stdout, stderr io.Writer) context.Context {
@@ -58,12 +60,24 @@ func withTestRuntime(ctx context.Context, configure func(*app.Runtime)) context.
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx = withTestClientResolver(ctx)
+
 	runtime := &app.Runtime{}
 	if existing, ok := app.FromContext(ctx); ok {
 		*runtime = *existing
 	}
 	configure(runtime)
 	return app.WithRuntime(ctx, runtime)
+}
+
+func withTestClientResolver(ctx context.Context) context.Context {
+	return authclient.WithClientResolver(ctx, func(email string, override string) (string, error) {
+		cfg, err := config.ReadConfig()
+		if err != nil {
+			return "", err
+		}
+		return config.ResolveClientForAccount(cfg, email, override)
+	})
 }
 
 func withAuthStore(ctx context.Context, store secrets.Store) context.Context {
