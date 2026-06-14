@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -44,72 +42,22 @@ type gmailWatchServer struct {
 }
 
 func (s *gmailWatchServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !pathMatches(s.cfg.Path, r.URL.Path) {
-		w.WriteHeader(http.StatusNotFound)
-		return
+	handler := gmailwatch.HTTPHandler{
+		Config: gmailwatch.HTTPConfig{
+			Path:        s.cfg.Path,
+			Account:     s.cfg.Account,
+			BodyLimit:   defaultPushBodyLimitBytes,
+			HasHook:     s.cfg.HookURL != "",
+			AllowNoHook: s.cfg.AllowNoHook,
+		},
+		Authorize: s.authorize,
+		Process: func(ctx context.Context, notification gmailwatch.Notification) (*gmailwatch.ProcessedPayload, error) {
+			return s.watchProcessor().Process(ctx, notification)
+		},
+		Now:   s.currentTime,
+		Warnf: s.warnf,
 	}
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	if ok := s.authorize(r); !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	push, err := parsePubSubPush(r)
-	if err != nil {
-		s.warnf("watch: invalid push payload: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	payload, err := decodeGmailPushPayload(push)
-	if err != nil {
-		s.warnf("watch: invalid push data: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if payload.EmailAddress != "" && !strings.EqualFold(payload.EmailAddress, s.cfg.Account) {
-		s.warnf("watch: ignoring push for %s", payload.EmailAddress)
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	processed, err := s.processGmailWatchPayload(r.Context(), payload)
-	if err != nil {
-		if errors.Is(err, errNoNewMessages) {
-			w.WriteHeader(http.StatusAccepted)
-			return
-		}
-		var rateErr *gmailWatchRateLimitError
-		if errors.As(err, &rateErr) {
-			if !rateErr.Until.IsZero() {
-				w.Header().Set("Retry-After", retryAfterSeconds(s.currentTime(), rateErr.Until))
-			}
-			s.warnf("watch: Gmail rate limit circuit open: %v", err)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-		s.warnf("watch: handle push failed: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if processed == nil || processed.Payload == nil {
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	if s.cfg.HookURL == "" {
-		if s.cfg.AllowNoHook {
-			_ = json.NewEncoder(w).Encode(processed.Payload)
-			return
-		}
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
+	handler.ServeHTTP(w, r)
 }
 
 func (s *gmailWatchServer) authorize(r *http.Request) bool {
@@ -206,42 +154,6 @@ func (s *gmailWatchServer) deliverHook(ctx context.Context, payload *gmailHookPa
 	}
 }
 
-func parsePubSubPush(r *http.Request) (*pubsubPushEnvelope, error) {
-	defer r.Body.Close()
-	limit := int64(defaultPushBodyLimitBytes)
-	data, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > limit {
-		return nil, errors.New("push body too large")
-	}
-	var envelope pubsubPushEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return nil, err
-	}
-	if envelope.Message.Data == "" {
-		return nil, errors.New("missing message.data")
-	}
-	return &envelope, nil
-}
-
-func decodeGmailPushPayload(envelope *pubsubPushEnvelope) (gmailPushPayload, error) {
-	decoded, err := base64.StdEncoding.DecodeString(envelope.Message.Data)
-	if err != nil {
-		decoded, err = base64.RawStdEncoding.DecodeString(envelope.Message.Data)
-		if err != nil {
-			return gmailPushPayload{}, err
-		}
-	}
-	var payload gmailPushPayload
-	if err := json.Unmarshal(decoded, &payload); err != nil {
-		return gmailPushPayload{}, err
-	}
-	payload.MessageID = strings.TrimSpace(envelope.Message.MessageID)
-	return payload, nil
-}
-
 func bearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
@@ -287,16 +199,6 @@ func verifyOIDCToken(ctx context.Context, validator *idtoken.Validator, token, a
 		return false, fmt.Errorf("oidc email mismatch: %s", email)
 	}
 	return true, nil
-}
-
-func pathMatches(expected, actual string) bool {
-	if expected == actual {
-		return true
-	}
-	if strings.HasSuffix(expected, "/") {
-		return strings.HasPrefix(actual, expected)
-	}
-	return strings.HasPrefix(actual, expected+"/")
 }
 
 func (s *gmailWatchServer) currentTime() time.Time {
@@ -368,15 +270,4 @@ func parseRetryAfterUntil(raw string, now time.Time) (time.Time, bool) {
 		return parsed, true
 	}
 	return time.Time{}, false
-}
-
-func retryAfterSeconds(now, until time.Time) string {
-	if now.IsZero() {
-		now = time.Now()
-	}
-	seconds := int64(until.Sub(now).Seconds())
-	if seconds < 1 {
-		seconds = 1
-	}
-	return strconv.FormatInt(seconds, 10)
 }

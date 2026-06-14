@@ -17,6 +17,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/gmailwatch"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -336,7 +337,7 @@ func TestGmailWatchHelpers(t *testing.T) {
 	if !sharedTokenMatches(r, "h") {
 		t.Fatalf("expected shared token match")
 	}
-	if !pathMatches("/x/", "/x/y") || !pathMatches("/x", "/x/y") {
+	if !gmailwatch.PathMatches("/x/", "/x/y") || !gmailwatch.PathMatches("/x", "/x/y") {
 		t.Fatalf("pathMatches")
 	}
 

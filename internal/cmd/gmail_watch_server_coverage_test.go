@@ -13,6 +13,8 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+
+	"github.com/steipete/gogcli/internal/gmailwatch"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -548,7 +550,7 @@ func (errReadCloser) Close() error             { return nil }
 
 func TestParsePubSubPush_ReadError(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", errReadCloser{})
-	if _, err := parsePubSubPush(req); err == nil {
+	if _, err := gmailwatch.ParsePush(req, defaultPushBodyLimitBytes); err == nil {
 		t.Fatalf("expected error")
 	}
 }
