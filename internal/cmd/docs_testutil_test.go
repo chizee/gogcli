@@ -80,6 +80,39 @@ func docsBodyWithEndIndex(endIndex int64) map[string]any {
 	}
 }
 
+func docsHeadingLinkTestDocument(elements ...*docs.StructuralElement) *docs.Document {
+	return &docs.Document{DocumentId: "doc1", Body: &docs.Body{Content: elements}}
+}
+
+func docsHeadingTestParagraph(start int64, headingID, text string) *docs.StructuralElement {
+	end := start + utf16Len(text)
+	return &docs.StructuralElement{
+		StartIndex: start,
+		EndIndex:   end,
+		Paragraph: &docs.Paragraph{
+			ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: headingID},
+			Elements: []*docs.ParagraphElement{{
+				StartIndex: start, EndIndex: end, TextRun: &docs.TextRun{Content: text},
+			}},
+		},
+	}
+}
+
+func docsLinkTestParagraph(start int64, url, text string) *docs.StructuralElement {
+	end := start + utf16Len(text)
+	return &docs.StructuralElement{
+		StartIndex: start,
+		EndIndex:   end + 1,
+		Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
+			StartIndex: start,
+			EndIndex:   end,
+			TextRun: &docs.TextRun{
+				Content: text, TextStyle: &docs.TextStyle{Link: &docs.Link{Url: url}},
+			},
+		}}},
+	}
+}
+
 func newDocsDocumentTestService(t *testing.T, document any, includeTabs *string) *docs.Service {
 	t.Helper()
 	svc, _ := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

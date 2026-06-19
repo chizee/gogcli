@@ -150,37 +150,10 @@ func TestDocsWrite_MarkdownReplaceRewritesHeadingSlugLinks(t *testing.T) {
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/documents/doc1"):
 			sawDocsGet = true
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(&docs.Document{
-				DocumentId: "doc1",
-				Body: &docs.Body{Content: []*docs.StructuralElement{
-					{
-						StartIndex: 1,
-						EndIndex:   20,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.heading1"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 1,
-								EndIndex:   19,
-								TextRun:    &docs.TextRun{Content: "Executive Summary\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 20,
-						EndIndex:   25,
-						Paragraph: &docs.Paragraph{
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 20,
-								EndIndex:   24,
-								TextRun: &docs.TextRun{
-									Content:   "Jump",
-									TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#executive-summary"}},
-								},
-							}},
-						},
-					},
-				}},
-			})
+			_ = json.NewEncoder(w).Encode(docsHeadingLinkTestDocument(
+				docsHeadingTestParagraph(1, "h.heading1", "Executive Summary\n"),
+				docsLinkTestParagraph(20, "#executive-summary", "Jump"),
+			))
 		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
 			if err := json.NewDecoder(r.Body).Decode(&batchReq); err != nil {
 				t.Fatalf("decode batch update: %v", err)
@@ -245,37 +218,10 @@ func TestDocsWrite_MarkdownReplaceStripsExplicitHeadingAnchors(t *testing.T) {
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/documents/doc1"):
 			sawDocsGet = true
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(&docs.Document{
-				DocumentId: "doc1",
-				Body: &docs.Body{Content: []*docs.StructuralElement{
-					{
-						StartIndex: 1,
-						EndIndex:   7,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.files"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 1,
-								EndIndex:   7,
-								TextRun:    &docs.TextRun{Content: "Files\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 7,
-						EndIndex:   12,
-						Paragraph: &docs.Paragraph{
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 7,
-								EndIndex:   11,
-								TextRun: &docs.TextRun{
-									Content:   "Jump",
-									TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#attachments"}},
-								},
-							}},
-						},
-					},
-				}},
-			})
+			_ = json.NewEncoder(w).Encode(docsHeadingLinkTestDocument(
+				docsHeadingTestParagraph(1, "h.files", "Files\n"),
+				docsLinkTestParagraph(7, "#attachments", "Jump"),
+			))
 		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
 			if err := json.NewDecoder(r.Body).Decode(&batchReq); err != nil {
 				t.Fatalf("decode batch update: %v", err)
@@ -624,47 +570,11 @@ func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T
 				_ = json.NewEncoder(w).Encode(docBodyWithText("Existing\n"))
 				return
 			}
-			_ = json.NewEncoder(w).Encode(&docs.Document{
-				DocumentId: "doc1",
-				Body: &docs.Body{Content: []*docs.StructuralElement{
-					{
-						StartIndex: 1,
-						EndIndex:   10,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.existing"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 1,
-								EndIndex:   10,
-								TextRun:    &docs.TextRun{Content: "Existing\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 10,
-						EndIndex:   16,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.files"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 10,
-								EndIndex:   16,
-								TextRun:    &docs.TextRun{Content: "Files\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 16,
-						EndIndex:   21,
-						Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
-							StartIndex: 16,
-							EndIndex:   20,
-							TextRun: &docs.TextRun{
-								Content:   "Jump",
-								TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#attachments"}},
-							},
-						}}},
-					},
-				}},
-			})
+			_ = json.NewEncoder(w).Encode(docsHeadingLinkTestDocument(
+				docsHeadingTestParagraph(1, "h.existing", "Existing\n"),
+				docsHeadingTestParagraph(10, "h.files", "Files\n"),
+				docsLinkTestParagraph(16, "#attachments", "Jump"),
+			))
 			return
 		case r.Method == http.MethodPost && strings.Contains(path, ":batchUpdate"):
 			var req docs.BatchUpdateDocumentRequest

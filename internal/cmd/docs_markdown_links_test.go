@@ -102,72 +102,11 @@ func TestRewriteMarkdownHeadingLinks_RewritesTableCellLinks(t *testing.T) {
 }
 
 func TestRewriteMarkdownHeadingLinks_MatchesExplicitAnchorByHeadingText(t *testing.T) {
-	var batchReq docs.BatchUpdateDocumentRequest
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/documents/doc1"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(&docs.Document{
-				DocumentId: "doc1",
-				Body: &docs.Body{Content: []*docs.StructuralElement{
-					{
-						StartIndex: 1,
-						EndIndex:   7,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.intro"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 1,
-								EndIndex:   7,
-								TextRun:    &docs.TextRun{Content: "Intro\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 7,
-						EndIndex:   13,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.files"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 7,
-								EndIndex:   13,
-								TextRun:    &docs.TextRun{Content: "Files\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 13,
-						EndIndex:   18,
-						Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
-							StartIndex: 13,
-							EndIndex:   17,
-							TextRun: &docs.TextRun{
-								Content:   "Jump",
-								TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#attachments"}},
-							},
-						}}},
-					},
-				}},
-			})
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
-			if err := json.NewDecoder(r.Body).Decode(&batchReq); err != nil {
-				t.Fatalf("decode batch update: %v", err)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer srv.Close()
-
-	svc, err := docs.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewDocsService: %v", err)
-	}
+	svc, capture := newDocsBatchUpdateTestService(t, docsHeadingLinkTestDocument(
+		docsHeadingTestParagraph(1, "h.intro", "Intro\n"),
+		docsHeadingTestParagraph(7, "h.files", "Files\n"),
+		docsLinkTestParagraph(13, "#attachments", "Jump"),
+	))
 
 	count, err := rewriteMarkdownHeadingLinks(context.Background(), svc, "doc1", "", []docsmarkdown.ExplicitHeadingAnchor{{
 		Anchor:     "attachments",
@@ -180,79 +119,18 @@ func TestRewriteMarkdownHeadingLinks_MatchesExplicitAnchorByHeadingText(t *testi
 	if count != 1 {
 		t.Fatalf("rewrite count = %d, want 1", count)
 	}
-	styleReq := batchReq.Requests[0].UpdateTextStyle
+	styleReq := capture.Requests[0][0].UpdateTextStyle
 	if styleReq.TextStyle == nil || styleReq.TextStyle.Link == nil || styleReq.TextStyle.Link.HeadingId != "h.files" {
 		t.Fatalf("link target = %#v, want h.files", styleReq)
 	}
 }
 
 func TestRewriteMarkdownHeadingLinks_ExplicitAnchorReservesAutoSlug(t *testing.T) {
-	var batchReq docs.BatchUpdateDocumentRequest
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/documents/doc1"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(&docs.Document{
-				DocumentId: "doc1",
-				Body: &docs.Body{Content: []*docs.StructuralElement{
-					{
-						StartIndex: 1,
-						EndIndex:   7,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.files1"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 1,
-								EndIndex:   7,
-								TextRun:    &docs.TextRun{Content: "Files\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 7,
-						EndIndex:   13,
-						Paragraph: &docs.Paragraph{
-							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.files2"},
-							Elements: []*docs.ParagraphElement{{
-								StartIndex: 7,
-								EndIndex:   13,
-								TextRun:    &docs.TextRun{Content: "Files\n"},
-							}},
-						},
-					},
-					{
-						StartIndex: 13,
-						EndIndex:   18,
-						Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
-							StartIndex: 13,
-							EndIndex:   17,
-							TextRun: &docs.TextRun{
-								Content:   "Next",
-								TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#files-1"}},
-							},
-						}}},
-					},
-				}},
-			})
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
-			if err := json.NewDecoder(r.Body).Decode(&batchReq); err != nil {
-				t.Fatalf("decode batch update: %v", err)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer srv.Close()
-
-	svc, err := docs.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewDocsService: %v", err)
-	}
+	svc, capture := newDocsBatchUpdateTestService(t, docsHeadingLinkTestDocument(
+		docsHeadingTestParagraph(1, "h.files1", "Files\n"),
+		docsHeadingTestParagraph(7, "h.files2", "Files\n"),
+		docsLinkTestParagraph(13, "#files-1", "Next"),
+	))
 
 	count, err := rewriteMarkdownHeadingLinks(context.Background(), svc, "doc1", "", []docsmarkdown.ExplicitHeadingAnchor{{
 		Anchor:     "files",
@@ -265,7 +143,7 @@ func TestRewriteMarkdownHeadingLinks_ExplicitAnchorReservesAutoSlug(t *testing.T
 	if count != 1 {
 		t.Fatalf("rewrite count = %d, want 1", count)
 	}
-	styleReq := batchReq.Requests[0].UpdateTextStyle
+	styleReq := capture.Requests[0][0].UpdateTextStyle
 	if styleReq.TextStyle == nil || styleReq.TextStyle.Link == nil || styleReq.TextStyle.Link.HeadingId != "h.files2" {
 		t.Fatalf("link target = %#v, want h.files2", styleReq)
 	}
