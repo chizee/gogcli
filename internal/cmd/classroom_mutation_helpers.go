@@ -100,12 +100,12 @@ func runClassroomAssigneeMutation[Request, Result any](
 	if err != nil {
 		return err
 	}
-	if err := dryRunExit(ctx, flags, operation.op, map[string]any{
+	if dryErr := dryRunExit(ctx, flags, operation.op, map[string]any{
 		"course_id":              courseID,
 		operation.itemPayloadKey: itemID,
 		"request":                request,
-	}); err != nil {
-		return err
+	}); dryErr != nil {
+		return dryErr
 	}
 
 	_, svc, err := requireClassroomService(ctx, flags)

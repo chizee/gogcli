@@ -228,7 +228,7 @@ func TestWriteDocsWriteOrphanResultJSONAndPlain(t *testing.T) {
 
 func newDocsWriteOrphanServices(t *testing.T, doc *docs.Document, comments []*drive.Comment) (*drive.Service, *docs.Service) {
 	t.Helper()
-	driveSvc, _ := newDriveCommentsTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	driveSvc := newDriveCommentsTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || strings.TrimPrefix(r.URL.Path, "/drive/v3") != "/files/doc1/comments" {
 			http.NotFound(w, r)
 			return

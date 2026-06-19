@@ -248,11 +248,12 @@ func assertCalendarConflictsUseAllCalendars(t *testing.T, selector []string) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	args := []string{
+	args := make([]string, 0, 9+len(selector))
+	args = append(args,
 		"--json",
 		"--account", "a@b.com",
 		"calendar", "conflicts",
-	}
+	)
 	args = append(args, selector...)
 	args = append(args,
 		"--from", "2026-01-10T00:00:00Z",

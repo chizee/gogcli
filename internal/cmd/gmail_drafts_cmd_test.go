@@ -61,8 +61,8 @@ func readGmailDraftRaw(t *testing.T, r *http.Request, wantThreadID string) strin
 		t.Fatalf("ReadAll: %v", err)
 	}
 	var draft gmail.Draft
-	if err := json.Unmarshal(body, &draft); err != nil {
-		t.Fatalf("unmarshal: %v body=%q", err, string(body))
+	if decodeErr := json.Unmarshal(body, &draft); decodeErr != nil {
+		t.Fatalf("unmarshal: %v body=%q", decodeErr, string(body))
 	}
 	if draft.Message == nil {
 		t.Fatal("expected draft message")

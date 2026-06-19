@@ -34,8 +34,8 @@ func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlag
 	return runClassroomPagedList(ctx, flags, classroomPagedListOptions[classroom.Announcement]{
 		parentName: "courseId", parentID: c.CourseID, max: c.Max, page: c.Page, all: c.All,
 		failEmpty: c.FailEmpty, jsonKey: "announcements", emptyMessage: "No announcements", columns: classroomAnnouncementColumns(),
-		fetch: func(ctx context.Context, svc *classroom.Service, courseID string, max int64, pageToken string) ([]*classroom.Announcement, string, error) {
-			call := svc.Courses.Announcements.List(courseID).PageSize(max).Context(ctx)
+		fetch: func(ctx context.Context, svc *classroom.Service, courseID string, pageSize int64, pageToken string) ([]*classroom.Announcement, string, error) {
+			call := svc.Courses.Announcements.List(courseID).PageSize(pageSize).Context(ctx)
 			if strings.TrimSpace(pageToken) != "" {
 				call = call.PageToken(pageToken)
 			}

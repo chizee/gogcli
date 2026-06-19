@@ -20,7 +20,6 @@ var searchConsoleTestServices = googleServiceTestSupport[searchconsoleapi.Servic
 
 var (
 	newSearchConsoleTestService                = searchConsoleTestServices.new
-	fixedSearchConsoleTestService              = searchConsoleTestServices.fixed
 	unexpectedSearchConsoleTestService         = searchConsoleTestServices.unexpected
 	executeWithSearchConsoleTestService        = searchConsoleTestServices.executeWithService
 	executeWithSearchConsoleTestServiceFactory = searchConsoleTestServices.execute

@@ -57,6 +57,7 @@ func TestSlidesTableStyle_DryRunRequests(t *testing.T) {
 				return (&SlidesTableRowSizeCmd{PresentationID: "pres1", TableObjectID: "table1", Row: 2, Height: 48}).Run(ctx, flags)
 			},
 			want: func(t *testing.T, requests []*slides.Request) {
+				t.Helper()
 				assertSlidesTableDimensionRequest(t, requests, "row", 2, 48)
 			},
 		},
@@ -67,6 +68,7 @@ func TestSlidesTableStyle_DryRunRequests(t *testing.T) {
 				return (&SlidesTableColumnSizeCmd{PresentationID: "pres1", TableObjectID: "table1", Col: 1, Width: 120}).Run(ctx, flags)
 			},
 			want: func(t *testing.T, requests []*slides.Request) {
+				t.Helper()
 				assertSlidesTableDimensionRequest(t, requests, "column", 1, 120)
 			},
 		},

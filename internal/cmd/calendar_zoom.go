@@ -16,6 +16,8 @@ import (
 	"github.com/steipete/gogcli/internal/zoom"
 )
 
+const conferenceProviderOther = "other"
+
 func newZoomMeetingClient(ctx context.Context, alias string) (app.ZoomMeetingClient, error) {
 	store, err := commandZoomStore(ctx)
 	if err != nil {
@@ -177,7 +179,7 @@ func eventConferenceProvider(event *calendar.Event) string {
 		}
 	}
 	if eventHasConferenceLink(event) {
-		return "other"
+		return conferenceProviderOther
 	}
 	return ""
 }

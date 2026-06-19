@@ -25,7 +25,7 @@ func newDocsCommentTestService(t *testing.T, content, quote string) *drive.Servi
 	if quote != "" {
 		response["quotedFileContent"] = map[string]any{"value": quote}
 	}
-	svc, _ := newDriveCommentsTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc := newDriveCommentsTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || strings.TrimPrefix(r.URL.Path, "/drive/v3") != "/files/doc1/comments/c1" {
 			http.NotFound(w, r)
 			return
@@ -199,7 +199,7 @@ func runDocsCommentsLocateJSON(t *testing.T, driveSvc *drive.Service, docsSvc *d
 	}
 }
 
-func newDriveCommentsTestService(t *testing.T, h http.HandlerFunc) (*drive.Service, func()) {
+func newDriveCommentsTestService(t *testing.T, h http.HandlerFunc) *drive.Service {
 	t.Helper()
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
@@ -211,5 +211,5 @@ func newDriveCommentsTestService(t *testing.T, h http.HandlerFunc) (*drive.Servi
 	if err != nil {
 		t.Fatalf("NewDriveService: %v", err)
 	}
-	return svc, func() {}
+	return svc
 }

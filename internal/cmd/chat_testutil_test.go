@@ -20,7 +20,6 @@ var chatTestServices = googleServiceTestSupport[chat.Service, app.ChatServiceFac
 
 var (
 	newChatTestService                = chatTestServices.new
-	fixedChatTestService              = chatTestServices.fixed
 	unexpectedChatTestService         = chatTestServices.unexpected
 	executeWithChatTestService        = chatTestServices.executeWithService
 	executeWithChatTestServiceFactory = chatTestServices.execute

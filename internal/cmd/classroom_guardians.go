@@ -30,8 +30,8 @@ func (c *ClassroomGuardiansListCmd) Run(ctx context.Context, flags *RootFlags) e
 	return runClassroomPagedList(ctx, flags, classroomPagedListOptions[classroom.Guardian]{
 		parentName: "studentId", parentID: c.StudentID, max: c.Max, page: c.Page, all: c.All,
 		failEmpty: c.FailEmpty, jsonKey: "guardians", emptyMessage: "No guardians", columns: classroomGuardianColumns(),
-		fetch: func(ctx context.Context, svc *classroom.Service, studentID string, max int64, pageToken string) ([]*classroom.Guardian, string, error) {
-			call := svc.UserProfiles.Guardians.List(studentID).PageSize(max).Context(ctx)
+		fetch: func(ctx context.Context, svc *classroom.Service, studentID string, pageSize int64, pageToken string) ([]*classroom.Guardian, string, error) {
+			call := svc.UserProfiles.Guardians.List(studentID).PageSize(pageSize).Context(ctx)
 			if strings.TrimSpace(pageToken) != "" {
 				call = call.PageToken(pageToken)
 			}
@@ -127,8 +127,8 @@ func (c *ClassroomGuardianInvitesListCmd) Run(ctx context.Context, flags *RootFl
 	return runClassroomPagedList(ctx, flags, classroomPagedListOptions[classroom.GuardianInvitation]{
 		parentName: "studentId", parentID: c.StudentID, max: c.Max, page: c.Page, all: c.All,
 		failEmpty: c.FailEmpty, jsonKey: "invitations", emptyMessage: "No guardian invitations", columns: classroomGuardianInvitationColumns(),
-		fetch: func(ctx context.Context, svc *classroom.Service, studentID string, max int64, pageToken string) ([]*classroom.GuardianInvitation, string, error) {
-			call := svc.UserProfiles.GuardianInvitations.List(studentID).PageSize(max).Context(ctx)
+		fetch: func(ctx context.Context, svc *classroom.Service, studentID string, pageSize int64, pageToken string) ([]*classroom.GuardianInvitation, string, error) {
+			call := svc.UserProfiles.GuardianInvitations.List(studentID).PageSize(pageSize).Context(ctx)
 			if strings.TrimSpace(pageToken) != "" {
 				call = call.PageToken(pageToken)
 			}

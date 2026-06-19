@@ -75,13 +75,13 @@ func runDriveCommentReply(ctx context.Context, flags *RootFlags, command driveCo
 		return usage(err.Error())
 	}
 
-	if err := dryRunExit(ctx, flags, command.op, map[string]any{
+	if dryErr := dryRunExit(ctx, flags, command.op, map[string]any{
 		command.payloadKey: resourceID,
 		"comment_id":       commentID,
 		"content":          content,
 		"action":           action,
-	}); err != nil {
-		return err
+	}); dryErr != nil {
+		return dryErr
 	}
 
 	_, svc, err := requireDriveService(ctx, flags)
