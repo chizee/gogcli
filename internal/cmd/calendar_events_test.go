@@ -46,8 +46,8 @@ func TestListCalendarEvents_JSON(t *testing.T) {
 	}
 }
 
-func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
-	svc, closeServer := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func calendarTimezoneEventsHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/calendars/cal1" && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
@@ -73,7 +73,11 @@ func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-	}))
+	})
+}
+
+func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
+	svc, closeServer := newCalendarServiceForTest(t, calendarTimezoneEventsHandler())
 	defer closeServer()
 
 	var output bytes.Buffer
@@ -151,33 +155,7 @@ func TestListCalendarEvents_TableIncludesLocation(t *testing.T) {
 }
 
 func TestListCalendarEvents_JSONUsesCalendarTimezoneForLocalFields(t *testing.T) {
-	svc, closeServer := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/calendars/cal1" && r.Method == http.MethodGet:
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":       "cal1",
-				"timeZone": "Africa/Windhoek",
-			})
-			return
-		case strings.Contains(r.URL.Path, "/calendars/cal1/events") && r.Method == http.MethodGet:
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"items": []map[string]any{
-					{
-						"id":      "e1",
-						"summary": "Followup",
-						"start":   map[string]any{"dateTime": "2026-04-08T20:00:00+13:00"},
-						"end":     map[string]any{"dateTime": "2026-04-08T20:20:00+13:00"},
-					},
-				},
-			})
-			return
-		default:
-			http.NotFound(w, r)
-			return
-		}
-	}))
+	svc, closeServer := newCalendarServiceForTest(t, calendarTimezoneEventsHandler())
 	defer closeServer()
 
 	var output bytes.Buffer
@@ -324,8 +302,8 @@ func TestCalendarEventsCmd_CalendarsFlag(t *testing.T) {
 	}
 }
 
-func TestCalendarEventsCmd_ListSelectorAllowsCalFlag(t *testing.T) {
-	svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestCalendarEventsCmd_ListSelectors(t *testing.T) {
+	handler := withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "/calendarList") &&
 			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
@@ -347,71 +325,28 @@ func TestCalendarEventsCmd_ListSelectorAllowsCalFlag(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-	})))
-	defer closeServer()
-
-	var output bytes.Buffer
-	ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), svc)
-	flags := &RootFlags{Account: "a@b.com"}
-	cmd := &CalendarEventsCmd{}
-
-	if err := runKong(t, cmd, []string{
-		"list",
-		"--cal", "Work",
-		"--from", "2025-01-01T00:00:00Z",
-		"--to", "2025-01-02T00:00:00Z",
-	}, ctx, flags); err != nil {
-		t.Fatalf("calendar events list --cal: %v", err)
-	}
-	out := output.String()
-
-	if !strings.Contains(out, `"events"`) || !strings.Contains(out, `"Event"`) {
-		t.Fatalf("unexpected output: %q", out)
-	}
-}
-
-func TestCalendarEventsCmd_ListSelectorAllowsPositionalCalendar(t *testing.T) {
-	svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.Contains(r.URL.Path, "/calendarList") &&
-			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
-			r.Method == http.MethodGet:
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"items": []map[string]any{{"id": "c1", "summary": "Work", "timeZone": "UTC"}},
-			})
-			return
-		case r.URL.Path == "/calendars/c1" && r.Method == http.MethodGet:
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "c1", "timeZone": "UTC"})
-			return
-		case strings.Contains(r.URL.Path, "/calendars/c1/events") && r.Method == http.MethodGet:
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{"id": "e1", "summary": "Event"}}})
-			return
-		default:
-			http.NotFound(w, r)
-			return
-		}
-	})))
-	defer closeServer()
-
-	var output bytes.Buffer
-	ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), svc)
-	flags := &RootFlags{Account: "a@b.com"}
-	cmd := &CalendarEventsCmd{}
-
-	if err := runKong(t, cmd, []string{
-		"list", "Work",
-		"--from", "2025-01-01T00:00:00Z",
-		"--to", "2025-01-02T00:00:00Z",
-	}, ctx, flags); err != nil {
-		t.Fatalf("calendar events list Work: %v", err)
-	}
-	out := output.String()
-
-	if !strings.Contains(out, `"events"`) || !strings.Contains(out, `"Event"`) {
-		t.Fatalf("unexpected output: %q", out)
+	}))
+	for _, tc := range []struct {
+		name     string
+		selector []string
+	}{
+		{name: "flag", selector: []string{"--cal", "Work"}},
+		{name: "positional", selector: []string{"Work"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, closeServer := newCalendarServiceForTest(t, handler)
+			t.Cleanup(closeServer)
+			var output bytes.Buffer
+			ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), svc)
+			args := append([]string{"list"}, tc.selector...)
+			args = append(args, "--from", "2025-01-01T00:00:00Z", "--to", "2025-01-02T00:00:00Z")
+			if err := runKong(t, &CalendarEventsCmd{}, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+				t.Fatalf("calendar events list: %v", err)
+			}
+			if out := output.String(); !strings.Contains(out, `"events"`) || !strings.Contains(out, `"Event"`) {
+				t.Fatalf("unexpected output: %q", out)
+			}
+		})
 	}
 }
 

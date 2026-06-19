@@ -328,34 +328,53 @@ func TestYouTubeSearchTypeValidation(t *testing.T) {
 	}
 }
 
-func TestYouTubeVideosListWithAccountUsesOAuthService(t *testing.T) {
+func assertYouTubeReadWithAccount(
+	t *testing.T,
+	path string,
+	queryKey string,
+	queryValue string,
+	services func(func(context.Context, string) (*youtube.Service, error)) youtubeTestServices,
+	run func(context.Context) error,
+) {
+	t.Helper()
 	var gotAccount string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/youtube/v3/videos" {
+		if r.URL.Path != path {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
-		if got := r.URL.Query().Get("id"); got != "dQw4w9WgXcQ" {
-			t.Fatalf("id = %q", got)
+		if got := r.URL.Query().Get(queryKey); got != queryValue {
+			t.Fatalf("%s = %q", queryKey, got)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 
 	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
-	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Account: func(_ context.Context, account string) (*youtube.Service, error) {
-			gotAccount = account
-			return svc, nil
-		},
-		APIKey: unexpectedYouTubeTestService(t, "API key service should not be used when account is configured"),
-	})
-	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "dQw4w9WgXcQ", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
-	if err != nil {
+	factory := func(_ context.Context, account string) (*youtube.Service, error) {
+		gotAccount = account
+		return svc, nil
+	}
+	testServices := services(factory)
+	testServices.APIKey = unexpectedYouTubeTestService(t, "API key service should not be used when account is configured")
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), testServices)
+	if err := run(ctx); err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
 	if gotAccount != "me@example.com" {
 		t.Fatalf("account = %q", gotAccount)
 	}
+}
+
+func TestYouTubeVideosListWithAccountUsesOAuthService(t *testing.T) {
+	assertYouTubeReadWithAccount(
+		t, "/youtube/v3/videos", "id", "dQw4w9WgXcQ",
+		func(factory func(context.Context, string) (*youtube.Service, error)) youtubeTestServices {
+			return youtubeTestServices{Account: factory}
+		},
+		func(ctx context.Context) error {
+			return runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "dQw4w9WgXcQ", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+		},
+	)
 }
 
 func TestYouTubeChannelReadCommandsWithAccountUseOAuthService(t *testing.T) {
@@ -428,33 +447,15 @@ func TestYouTubeChannelReadCommandsWithAccountUseOAuthService(t *testing.T) {
 }
 
 func TestYouTubeCommentsListWithAccountUsesOAuthService(t *testing.T) {
-	var gotAccount string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/youtube/v3/commentThreads" {
-			t.Fatalf("path = %s", r.URL.Path)
-		}
-		if got := r.URL.Query().Get("videoId"); got != "dQw4w9WgXcQ" {
-			t.Fatalf("videoId = %q", got)
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
-	}))
-	defer srv.Close()
-
-	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
-	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Comments: func(_ context.Context, account string) (*youtube.Service, error) {
-			gotAccount = account
-			return svc, nil
+	assertYouTubeReadWithAccount(
+		t, "/youtube/v3/commentThreads", "videoId", "dQw4w9WgXcQ",
+		func(factory func(context.Context, string) (*youtube.Service, error)) youtubeTestServices {
+			return youtubeTestServices{Comments: factory}
 		},
-		APIKey: unexpectedYouTubeTestService(t, "API key service should not be used when account is configured"),
-	})
-	err := runKong(t, &YouTubeCommentsListCmd{}, []string{"--video-id", "dQw4w9WgXcQ", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
-	if err != nil {
-		t.Fatalf("runKong: %v", err)
-	}
-	if gotAccount != "me@example.com" {
-		t.Fatalf("account = %q", gotAccount)
-	}
+		func(ctx context.Context) error {
+			return runKong(t, &YouTubeCommentsListCmd{}, []string{"--video-id", "dQw4w9WgXcQ", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+		},
+	)
 }
 
 func TestYouTubeVideosListWithAutoAccountUsesOAuthService(t *testing.T) {

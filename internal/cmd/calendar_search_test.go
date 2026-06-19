@@ -14,46 +14,35 @@ import (
 	"google.golang.org/api/option"
 )
 
-func TestCalendarSearchCmd_JSON(t *testing.T) {
-	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/events") && r.Method == http.MethodGet {
-			// Verify query parameter is set
-			q := r.URL.Query().Get("q")
-			if q != "team meeting" {
-				t.Errorf("unexpected query: %q", q)
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"items": []map[string]any{
-					{
-						"id":      "event1",
-						"summary": "Team meeting",
-						"start":   map[string]any{"dateTime": "2024-01-15T10:00:00Z"},
-						"end":     map[string]any{"dateTime": "2024-01-15T11:00:00Z"},
-					},
-					{
-						"id":      "event2",
-						"summary": "Team standup meeting",
-						"start":   map[string]any{"dateTime": "2024-01-16T09:00:00Z"},
-						"end":     map[string]any{"dateTime": "2024-01-16T09:30:00Z"},
-					},
-				},
-			})
+func newCalendarSearchTestService(
+	t *testing.T,
+	verify func(*http.Request),
+	items []map[string]any,
+) *calendar.Service {
+	t.Helper()
+	handler := withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/events") || r.Method != http.MethodGet {
+			http.NotFound(w, r)
 			return
 		}
-		http.NotFound(w, r)
-	})))
-	defer srv.Close()
+		verify(r)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
+	}))
+	svc, closeServer := newGoogleTestService(t, handler, calendar.NewService)
+	t.Cleanup(closeServer)
+	return svc
+}
 
-	svc, err := calendar.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
+func TestCalendarSearchCmd_JSON(t *testing.T) {
+	svc := newCalendarSearchTestService(t, func(r *http.Request) {
+		if q := r.URL.Query().Get("q"); q != "team meeting" {
+			t.Errorf("unexpected query: %q", q)
+		}
+	}, []map[string]any{
+		{"id": "event1", "summary": "Team meeting", "start": map[string]any{"dateTime": "2024-01-15T10:00:00Z"}, "end": map[string]any{"dateTime": "2024-01-15T11:00:00Z"}},
+		{"id": "event2", "summary": "Team standup meeting", "start": map[string]any{"dateTime": "2024-01-16T09:00:00Z"}, "end": map[string]any{"dateTime": "2024-01-16T09:30:00Z"}},
+	})
 	result := executeWithCalendarTestService(t, []string{"--json", "--account", "a@b.com", "calendar", "search", "team meeting"}, svc)
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)
@@ -342,45 +331,14 @@ func TestCalendarSearchCmd_TableOutput(t *testing.T) {
 }
 
 func TestCalendarSearchCmd_MaxResults(t *testing.T) {
-	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/events") && r.Method == http.MethodGet {
-			// Verify maxResults parameter
-			maxResults := r.URL.Query().Get("maxResults")
-			if maxResults != "5" {
-				t.Errorf("unexpected maxResults: %q", maxResults)
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"items": []map[string]any{
-					{
-						"id":      "event1",
-						"summary": "Meeting 1",
-						"start":   map[string]any{"dateTime": "2024-01-15T10:00:00Z"},
-						"end":     map[string]any{"dateTime": "2024-01-15T11:00:00Z"},
-					},
-					{
-						"id":      "event2",
-						"summary": "Meeting 2",
-						"start":   map[string]any{"dateTime": "2024-01-16T10:00:00Z"},
-						"end":     map[string]any{"dateTime": "2024-01-16T11:00:00Z"},
-					},
-				},
-			})
-			return
+	svc := newCalendarSearchTestService(t, func(r *http.Request) {
+		if maxResults := r.URL.Query().Get("maxResults"); maxResults != "5" {
+			t.Errorf("unexpected maxResults: %q", maxResults)
 		}
-		http.NotFound(w, r)
-	})))
-	defer srv.Close()
-
-	svc, err := calendar.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
+	}, []map[string]any{
+		{"id": "event1", "summary": "Meeting 1", "start": map[string]any{"dateTime": "2024-01-15T10:00:00Z"}, "end": map[string]any{"dateTime": "2024-01-15T11:00:00Z"}},
+		{"id": "event2", "summary": "Meeting 2", "start": map[string]any{"dateTime": "2024-01-16T10:00:00Z"}, "end": map[string]any{"dateTime": "2024-01-16T11:00:00Z"}},
+	})
 	result := executeWithCalendarTestService(t, []string{
 		"--json",
 		"--account", "a@b.com",
