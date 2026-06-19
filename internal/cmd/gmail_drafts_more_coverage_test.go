@@ -11,20 +11,10 @@ import (
 )
 
 func TestGmailDraftsList_Empty(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"drafts": []map[string]any{}})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer srv.Close()
-
 	result := executeWithGmailTestService(
 		t,
 		[]string{"--plain", "--account", "a@b.com", "gmail", "drafts", "list"},
-		newGmailServiceFromServer(t, srv),
+		newGmailEmptyListTestService(t, "/gmail/v1/users/me/drafts", "drafts"),
 	)
 	if result.err != nil {
 		t.Fatalf("list: %v\nstderr=%q", result.err, result.stderr)

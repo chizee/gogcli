@@ -176,16 +176,7 @@ func TestSheetsLinksCmd_OffsetRange_JSON(t *testing.T) {
 }
 
 func TestSheetsLinksCmd_NoLinks(t *testing.T) {
-	ctx, _, errOutput := newSheetsLinksTestContext(t, sheetsEmptyAnnotationsHandler(), false)
-	flags := &RootFlags{Account: "a@b.com"}
-	if err := runKong(t, &SheetsLinksCmd{}, []string{"s1", "Sheet1!A1"}, ctx, flags); err != nil {
-		t.Fatalf("links: %v", err)
-	}
-	errOut := errOutput.String()
-
-	if !strings.Contains(errOut, "No links found") {
-		t.Errorf("expected 'No links found' on stderr: %q", errOut)
-	}
+	assertSheetsNoAnnotations(t, &SheetsLinksCmd{}, []string{"s1", "Sheet1!A1"}, newSheetsLinksTestContext, "No links found")
 }
 
 func TestSheetsLinksCmd_RichTextRunsAndCellLevelLinks(t *testing.T) {

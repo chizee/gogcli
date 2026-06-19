@@ -173,14 +173,5 @@ func TestSheetsNotesCmd_OffsetRange_JSON(t *testing.T) {
 }
 
 func TestSheetsNotesCmd_NoNotes(t *testing.T) {
-	ctx, _, errOutput := newSheetsNotesTestContext(t, sheetsEmptyAnnotationsHandler(), false)
-	flags := &RootFlags{Account: "a@b.com"}
-	if err := runKong(t, &SheetsNotesCmd{}, []string{"s1", "Sheet1!A1"}, ctx, flags); err != nil {
-		t.Fatalf("notes: %v", err)
-	}
-	errOut := errOutput.String()
-
-	if !strings.Contains(errOut, "No notes found") {
-		t.Errorf("expected 'No notes found' on stderr: %q", errOut)
-	}
+	assertSheetsNoAnnotations(t, &SheetsNotesCmd{}, []string{"s1", "Sheet1!A1"}, newSheetsNotesTestContext, "No notes found")
 }

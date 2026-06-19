@@ -2,14 +2,61 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/app"
 )
+
+func gmailSearchTestHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(path, "/users/me/threads") && !strings.Contains(path, "/users/me/threads/"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"threads": []map[string]any{{"id": "t1"}}, "nextPageToken": "npt",
+			})
+		case strings.Contains(path, "/users/me/threads/t1"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t1", "messages": []map[string]any{{
+					"id": "m1", "labelIds": []string{"INBOX"},
+					"payload": map[string]any{"headers": []map[string]any{
+						{"name": "From", "value": "Me <me@example.com>"},
+						{"name": "Subject", "value": "Hello"},
+						{"name": "Date", "value": "Mon, 02 Jan 2006 15:04:05 -0700"},
+					}},
+				}},
+			})
+		case strings.Contains(path, "/users/me/labels"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"labels": []map[string]any{{"id": "INBOX", "name": "INBOX", "type": "system"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+func newGmailEmptyListTestService(t *testing.T, path, key string) *gmail.Service {
+	t.Helper()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, path) || r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{key: []map[string]any{}})
+	})
+	svc, closeServer := newGoogleTestService(t, handler, gmail.NewService)
+	t.Cleanup(closeServer)
+	return svc
+}
 
 func newGmailServiceForTest(t *testing.T, h http.HandlerFunc) (*gmail.Service, func()) {
 	t.Helper()

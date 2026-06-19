@@ -9,48 +9,7 @@ import (
 )
 
 func TestExecute_GmailSearch_Text(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		switch {
-		case strings.Contains(path, "/users/me/threads") && !strings.Contains(path, "/users/me/threads/"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"threads":       []map[string]any{{"id": "t1"}},
-				"nextPageToken": "npt",
-			})
-			return
-		case strings.Contains(path, "/users/me/threads/t1"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id": "t1",
-				"messages": []map[string]any{
-					{
-						"id":       "m1",
-						"labelIds": []string{"INBOX"},
-						"payload": map[string]any{
-							"headers": []map[string]any{
-								{"name": "From", "value": "Me <me@example.com>"},
-								{"name": "Subject", "value": "Hello"},
-								{"name": "Date", "value": "Mon, 02 Jan 2006 15:04:05 -0700"},
-							},
-						},
-					},
-				},
-			})
-			return
-		case strings.Contains(path, "/users/me/labels"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"labels": []map[string]any{
-					{"id": "INBOX", "name": "INBOX", "type": "system"},
-				},
-			})
-			return
-		default:
-			http.NotFound(w, r)
-			return
-		}
-	}))
+	srv := httptest.NewServer(gmailSearchTestHandler())
 	defer srv.Close()
 
 	result := executeWithGmailTestService(

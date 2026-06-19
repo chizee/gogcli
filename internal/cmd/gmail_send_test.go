@@ -460,6 +460,15 @@ func TestGmailSendCmd_BodyHTMLFileConflict(t *testing.T) {
 }
 
 func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
+	assertGmailSendFromAlias(t, "alias@example.com", "Alias", "accepted", "Alias <alias@example.com>")
+}
+
+func TestGmailSendCmd_RunJSON_WithFromWorkspaceAliasNoVerificationStatus(t *testing.T) {
+	assertGmailSendFromAlias(t, "workspace-alias@example.com", "Workspace Alias", "", "Workspace Alias <workspace-alias@example.com>")
+}
+
+func assertGmailSendFromAlias(t *testing.T, email, displayName, verificationStatus, want string) {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
 		switch {
@@ -468,9 +477,9 @@ func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"sendAs": []map[string]any{
 					{
-						"sendAsEmail":        "alias@example.com",
-						"displayName":        "Alias",
-						"verificationStatus": "accepted",
+						"sendAsEmail":        email,
+						"displayName":        displayName,
+						"verificationStatus": verificationStatus,
 					},
 				},
 			})
@@ -493,57 +502,13 @@ func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
 
 	cmd := &GmailSendCmd{
 		To:      "a@example.com",
-		From:    "alias@example.com",
+		From:    email,
 		Subject: "Hello",
 		Body:    "Body",
 	}
 
 	out := runGmailSendJSON(t, cmd, svc, nil)
-	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "Alias <alias@example.com>") {
-		t.Fatalf("unexpected output: %q", out)
-	}
-}
-
-func TestGmailSendCmd_RunJSON_WithFromWorkspaceAliasNoVerificationStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
-		switch {
-		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"sendAs": []map[string]any{
-					{
-						"sendAsEmail": "workspace-alias@example.com",
-						"displayName": "Workspace Alias",
-					},
-				},
-			})
-			return
-		case r.Method == http.MethodPost && path == "/users/me/messages/send":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":       "m2w",
-				"threadId": "t2w",
-			})
-			return
-		default:
-			http.NotFound(w, r)
-			return
-		}
-	}))
-	defer srv.Close()
-
-	svc := newGmailServiceFromServer(t, srv)
-
-	cmd := &GmailSendCmd{
-		To:      "a@example.com",
-		From:    "workspace-alias@example.com",
-		Subject: "Hello",
-		Body:    "Body",
-	}
-
-	out := runGmailSendJSON(t, cmd, svc, nil)
-	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "Workspace Alias <workspace-alias@example.com>") {
+	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, want) {
 		t.Fatalf("unexpected output: %q", out)
 	}
 }

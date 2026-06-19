@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -86,6 +87,23 @@ func sheetsEmptyAnnotationsHandler() http.Handler {
 			}}}},
 		})
 	})
+}
+
+func assertSheetsNoAnnotations(
+	t *testing.T,
+	cmd any,
+	args []string,
+	newContext func(*testing.T, http.Handler, bool) (context.Context, *bytes.Buffer, *bytes.Buffer),
+	want string,
+) {
+	t.Helper()
+	ctx, _, stderr := newContext(t, sheetsEmptyAnnotationsHandler(), false)
+	if err := runKong(t, cmd, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("read annotations: %v", err)
+	}
+	if !strings.Contains(stderr.String(), want) {
+		t.Errorf("expected %q on stderr: %q", want, stderr.String())
+	}
 }
 
 func newSheetsServiceFromServer(t *testing.T, srv *httptest.Server) *sheets.Service {
