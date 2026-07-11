@@ -17,7 +17,10 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 		return
 	}
 	eventTimezone := eventTimezone(event)
-	calendarTimezone, loc = resolveEventTimezone(event, calendarTimezone, loc)
+	fallbackTimezone, fallbackLoc := calendarTimezone, loc
+	calendarTimezone = resolveEventTimezone(event, calendarTimezone, loc)
+	startLoc := resolveEventDateTimeTimezone(event.Start, fallbackTimezone, fallbackLoc)
+	endLoc := resolveEventDateTimeTimezone(event.End, fallbackTimezone, fallbackLoc)
 
 	u.Out().Linef("id\t%s", event.Id)
 	if event.RecurringEventId != "" {
@@ -35,18 +38,19 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 	}
 
 	u.Out().Linef("start\t%s", eventStart(event))
-	startDay, endDay := eventDaysOfWeek(event)
+	startDay := dayOfWeekFromEventDateTime(event.Start, startLoc)
+	endDay := dayOfWeekFromEventDateTime(event.End, endLoc)
 	if startDay != "" {
 		u.Out().Linef("start-day-of-week\t%s", startDay)
 	}
-	if startLocal := formatEventLocal(event.Start, loc); startLocal != "" {
+	if startLocal := formatEventLocal(event.Start, startLoc); startLocal != "" {
 		u.Out().Linef("start-local\t%s", startLocal)
 	}
 	u.Out().Linef("end\t%s", eventEnd(event))
 	if endDay != "" {
 		u.Out().Linef("end-day-of-week\t%s", endDay)
 	}
-	if endLocal := formatEventLocal(event.End, loc); endLocal != "" {
+	if endLocal := formatEventLocal(event.End, endLoc); endLocal != "" {
 		u.Out().Linef("end-local\t%s", endLocal)
 	}
 	if event.Description != "" {

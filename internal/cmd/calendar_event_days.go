@@ -48,11 +48,15 @@ func wrapEventWithDaysWithTimezone(event *calendar.Event, calendarTimezone strin
 		return nil
 	}
 	evTimezone := eventTimezone(event)
-	calendarTimezone, loc = resolveEventTimezone(event, calendarTimezone, loc)
-	startDay, endDay := eventDaysOfWeekInLocation(event, loc)
+	fallbackTimezone, fallbackLoc := calendarTimezone, loc
+	calendarTimezone = resolveEventTimezone(event, calendarTimezone, loc)
+	startLoc := resolveEventDateTimeTimezone(event.Start, fallbackTimezone, fallbackLoc)
+	endLoc := resolveEventDateTimeTimezone(event.End, fallbackTimezone, fallbackLoc)
+	startDay := dayOfWeekFromEventDateTime(event.Start, startLoc)
+	endDay := dayOfWeekFromEventDateTime(event.End, endLoc)
 
-	startLocal := formatEventLocal(event.Start, loc)
-	endLocal := formatEventLocal(event.End, loc)
+	startLocal := formatEventLocal(event.Start, startLoc)
+	endLocal := formatEventLocal(event.End, endLoc)
 
 	wrapped := &eventWithDays{
 		Event:          event,
@@ -145,32 +149,56 @@ func loadEventLocation(tz string) (*time.Location, bool) {
 	return tryLoadTimezoneLocation(tz)
 }
 
-// resolveEventTimezone resolves the timezone and location for an event.
-// It tries the calendar timezone first, then falls back to the event's timezone.
-// Returns the resolved timezone name and location. If loc is already provided,
-// it will be used as-is (only calendarTimezone may be updated for display).
-func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *time.Location) (string, *time.Location) {
+// resolveEventTimezone resolves the timezone and location used for local
+// event display. Prefer the event's own timezone over the containing
+// calendar timezone: Google Calendar may return a DateTime rendered with the
+// calendar's UTC offset while also carrying the event timezone field. Showing
+// local fields in the calendar timezone makes conference/travel events look an
+// hour early/late (for example an Asia/Seoul event on an Asia/Hong_Kong
+// calendar). Fall back to the calendar timezone only when the event has none.
+func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *time.Location) string {
 	calendarTimezone = strings.TrimSpace(calendarTimezone)
 	evTimezone := eventTimezone(event)
 
-	if loc == nil && calendarTimezone != "" {
-		if loaded, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
-			loc = loaded
-		} else {
-			calendarTimezone = ""
+	if evTimezone != "" {
+		if _, ok := tryLoadTimezoneLocation(evTimezone); ok {
+			return evTimezone
 		}
 	}
-	if calendarTimezone == "" {
-		calendarTimezone = evTimezone
-		if loc == nil && calendarTimezone != "" {
-			if loaded, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
-				loc = loaded
-			} else {
-				calendarTimezone = ""
+
+	if calendarTimezone != "" {
+		if loc != nil {
+			return calendarTimezone
+		}
+		if _, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
+			return calendarTimezone
+		}
+	}
+
+	return ""
+}
+
+func resolveEventDateTimeTimezone(dt *calendar.EventDateTime, fallbackTimezone string, fallbackLoc *time.Location) *time.Location {
+	if dt != nil {
+		tz := strings.TrimSpace(dt.TimeZone)
+		if tz != "" {
+			if loaded, ok := tryLoadTimezoneLocation(tz); ok {
+				return loaded
 			}
 		}
 	}
-	return calendarTimezone, loc
+
+	fallbackTimezone = strings.TrimSpace(fallbackTimezone)
+	if fallbackTimezone == "" {
+		return nil
+	}
+	if fallbackLoc != nil {
+		return fallbackLoc
+	}
+	if loaded, ok := tryLoadTimezoneLocation(fallbackTimezone); ok {
+		return loaded
+	}
+	return nil
 }
 
 func marshalCalendarEventWithFields(event *calendar.Event, fields map[string]string) ([]byte, error) {
