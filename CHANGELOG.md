@@ -2,6 +2,7 @@
 
 ## 0.34.1 - Unreleased
 
+- Gmail: add `gmail attachment --inline` for bounded base64 content output to remote callers while always fetching fresh bytes and retaining path-only fallback above 3 MiB. (#919) — thanks @chrischall.
 - Docs: preserve external and internal text-run link targets in `docs cat --chips`, JSON, tab, table, and numbered output while keeping default text unchanged. (#917, #921) — thanks @neo-wanderer.
 - Gmail: enforce per-account no-send guards before dry-run exits for first-class and Discovery send paths while preserving no-guard keyring avoidance. (#915, #916) — thanks @veteranbv.
 - Gmail: accept padded Gmail API base64url payloads in `gmail get --format raw` while retaining unpadded compatibility. (#922, #923) — thanks @goutamadwant.

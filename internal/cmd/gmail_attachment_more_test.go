@@ -80,12 +80,12 @@ func TestDownloadAttachmentToPath_Base64Fallback(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "c.bin")
-	gotPath, cached, bytes, err := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", path, 0)
+	gotPath, bytes, fetched, err := downloadAttachmentFreshToPath(context.Background(), gsvc, "m1", "a1", path)
 	if err != nil {
-		t.Fatalf("downloadAttachmentToPath: %v", err)
+		t.Fatalf("downloadAttachmentFreshToPath: %v", err)
 	}
-	if gotPath != path || cached || bytes != 5 {
-		t.Fatalf("unexpected result: path=%q cached=%v bytes=%d", gotPath, cached, bytes)
+	if gotPath != path || bytes != 5 || string(fetched) != "hello" {
+		t.Fatalf("unexpected result: path=%q bytes=%d fetched=%q", gotPath, bytes, fetched)
 	}
 	if data, err := os.ReadFile(path); err != nil {
 		t.Fatalf("ReadFile: %v", err)
